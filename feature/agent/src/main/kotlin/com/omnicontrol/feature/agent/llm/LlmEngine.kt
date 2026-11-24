@@ -146,7 +146,56 @@ class FallbackLlmEngine : LlmEngine {
                     }
                 }
 
-                // 7. Keyword matching for content selection / clicking
+                // 7. Handle Ordinal selection: e.g. "open first video", "play second video", "click the third one", "first video open first video"
+                val isOrdinal = cleanGoal.contains("first") || cleanGoal.contains("1st") ||
+                    cleanGoal.contains("second") || cleanGoal.contains("2nd") ||
+                    cleanGoal.contains("third") || cleanGoal.contains("3rd") ||
+                    cleanGoal.contains("fourth") || cleanGoal.contains("4th") ||
+                    cleanGoal.contains("last") || cleanGoal.contains("top")
+
+                if (isOrdinal) {
+                    val targetIndex = when {
+                        cleanGoal.contains("first") || cleanGoal.contains("1st") || cleanGoal.contains("top") -> 0
+                        cleanGoal.contains("second") || cleanGoal.contains("2nd") -> 1
+                        cleanGoal.contains("third") || cleanGoal.contains("3rd") -> 2
+                        cleanGoal.contains("fourth") || cleanGoal.contains("4th") -> 3
+                        else -> 0
+                    }
+                    val isLast = cleanGoal.contains("last")
+
+                    val nonContentKeywords = setOf(
+                        "home", "subs", "subscriptions", "music", "live", "more", "search",
+                        "notifications", "create", "you", "explore", "trending", "settings",
+                        "menu", "cast", "back", "navigate up", "voice search", "close", "dismiss"
+                    )
+
+                    val contentCandidates = elements.filter { el ->
+                        val lbl = el.label.lowercase().trim()
+                        val meaningful = lbl.length >= 4 && !nonContentKeywords.contains(lbl)
+                        val isCardRole = el.role in listOf("view", "container", "clickable", "button", "text")
+                        meaningful && isCardRole
+                    }
+
+                    val selectedElement = if (isLast) {
+                        contentCandidates.lastOrNull()
+                    } else {
+                        contentCandidates.getOrNull(targetIndex) ?: contentCandidates.firstOrNull()
+                    }
+
+                    if (selectedElement != null) {
+                        val safeLabel = escapeJson(selectedElement.label.take(60))
+                        val speechLabel = escapeJson(selectedElement.label.take(40))
+                        val ordinalName = when (targetIndex) {
+                            0 -> "first"
+                            1 -> "second"
+                            2 -> "third"
+                            else -> "selected"
+                        }
+                        return """{"thought":"Opening $ordinalName content item [${selectedElement.id}] \"$safeLabel\"","action":{"type":"click","target":${selectedElement.id}},"say":"Opening $ordinalName video"}"""
+                    }
+                }
+
+                // 8. Keyword matching for content selection / clicking
                 val stopWords = setOf(
                     "open", "play", "watch", "click", "tap", "show", "me", "the", "a", "an",
                     "having", "with", "of", "in", "by", "from", "on", "to", "please", "video",

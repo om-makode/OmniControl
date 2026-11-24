@@ -69,7 +69,10 @@ class AssistantStateStore {
                     sessionActive = false,
                     assistant = AssistantState.Idle,
                     partialTranscript = "",
-                    audioLevel = 0f
+                    audioLevel = 0f,
+                    messages = emptyList(),
+                    targetBounds = null,
+                    panelExpanded = false
                 )
             }
             is AssistantEvent.SetListening -> current.copy(assistant = AssistantState.Listening)

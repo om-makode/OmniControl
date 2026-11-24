@@ -88,4 +88,59 @@ Output your JSON action:
         assertNotNull(plan)
         assertEquals("done", plan!!.action.type)
     }
+
+    @Test
+    fun testOpenFirstVideoOrdinal() {
+        val prompt = """
+<|system|>
+You are an agent.
+<|end|>
+<|observation|>
+APP: YouTube (com.google.android.youtube)
+KEYBOARD: hidden   FOCUSED: none
+[1] button "Search"
+[2] button "Home"
+[3] button "Subscriptions"
+[4] view "GTA 6 Gameplay Trailer"
+[5] view "Cooking Masterclass"
+<|end|>
+<|user|>
+Goal: open first video
+Output your JSON action:
+<|assistant|>
+        """.trimIndent()
+
+        val json = FallbackLlmEngine.planFromPrompt(prompt)
+        val plan = ActionGrammar.parsePlan(json).getOrNull()
+        assertNotNull(plan)
+        assertEquals("click", plan!!.action.type)
+        assertEquals(4, plan.action.target)
+    }
+
+    @Test
+    fun testOpenSecondVideoOrdinal() {
+        val prompt = """
+<|system|>
+You are an agent.
+<|end|>
+<|observation|>
+APP: YouTube (com.google.android.youtube)
+KEYBOARD: hidden   FOCUSED: none
+[1] button "Search"
+[2] button "Home"
+[4] view "GTA 6 Gameplay Trailer"
+[5] view "Cooking Masterclass"
+<|end|>
+<|user|>
+Goal: open second video
+Output your JSON action:
+<|assistant|>
+        """.trimIndent()
+
+        val json = FallbackLlmEngine.planFromPrompt(prompt)
+        val plan = ActionGrammar.parsePlan(json).getOrNull()
+        assertNotNull(plan)
+        assertEquals("click", plan!!.action.type)
+        assertEquals(5, plan.action.target)
+    }
 }

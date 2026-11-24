@@ -219,9 +219,9 @@ class ActionExecutor(
         if (targetId == null) return false
         val element = observation.elements.find { it.id == targetId } ?: return false
 
-        // Highlight target element
+        // Highlight target element with Touching Ball
         onHighlightTarget?.invoke(element.bounds)
-        delay(150)
+        delay(280)
 
         // Try node click first
         val root = service.rootInActiveWindow
@@ -249,7 +249,7 @@ class ActionExecutor(
         val element = observation.elements.find { it.id == targetId } ?: return false
 
         onHighlightTarget?.invoke(element.bounds)
-        delay(150)
+        delay(280)
 
         val root = service.rootInActiveWindow
         var nodeClicked = false

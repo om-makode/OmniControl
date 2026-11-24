@@ -39,8 +39,7 @@ import com.omnicontrol.feature.overlay.state.AssistantEvent
 import com.omnicontrol.feature.overlay.state.AssistantStateStore
 import com.omnicontrol.feature.overlay.ui.BubbleContent
 import com.omnicontrol.feature.overlay.ui.HighlightOverlayContent
-import com.omnicontrol.feature.overlay.ui.PanelContent
-import com.omnicontrol.feature.overlay.ui.StatusPillContent
+import com.omnicontrol.feature.overlay.ui.TopSpeechBubbleView
 import com.omnicontrol.feature.overlay.window.OverlayWindowManager
 import com.omnicontrol.feature.voice.VoiceEngine
 import com.omnicontrol.feature.agent.loop.AgentLoop
@@ -61,8 +60,7 @@ class AssistantService : LifecycleService() {
     private lateinit var notificationManager: NotificationManager
 
     private var bubbleView: ComposeView? = null
-    private var panelView: ComposeView? = null
-    private var statusPillView: ComposeView? = null
+    private var topBubbleView: ComposeView? = null
     private var highlightView: ComposeView? = null
     private var voiceEngine: VoiceEngine? = null
     private var agentLoop: AgentLoop? = null
@@ -98,8 +96,7 @@ class AssistantService : LifecycleService() {
         startForegroundSpecialUse()
 
         initBubbleWindow()
-        initPanelWindow()
-        initStatusPillWindow()
+        initTopBubbleWindow()
         initHighlightWindow()
 
         initVoiceEngine()
@@ -128,12 +125,16 @@ class AssistantService : LifecycleService() {
                 }
             }
             ACTION_STOP -> {
-                agentLoop?.cancel()
-                voiceEngine?.endSession()
-                stateStore.dispatch(AssistantEvent.StopSession)
+                stopSession()
             }
             ACTION_TOGGLE -> {
-                stateStore.dispatch(AssistantEvent.BubbleTap)
+                val current = stateStore.state.value
+                if (!current.sessionActive) {
+                    stateStore.dispatch(AssistantEvent.StartSession)
+                    voiceEngine?.startSession(lifecycleScope)
+                } else {
+                    stopSession()
+                }
             }
             ACTION_HIDE -> {
                 overlayWindowManager.removeAll()
@@ -364,9 +365,12 @@ class AssistantService : LifecycleService() {
                     state = state.assistant,
                     audioLevel = state.audioLevel,
                     onClick = {
-                        stateStore.dispatch(AssistantEvent.BubbleTap)
-                        if (voiceEngine?.isRunning == false) {
+                        val current = stateStore.state.value
+                        if (!current.sessionActive) {
+                            stateStore.dispatch(AssistantEvent.StartSession)
                             voiceEngine?.startSession(lifecycleScope)
+                        } else {
+                            stopSession()
                         }
                     }
                 )
@@ -399,9 +403,12 @@ class AssistantService : LifecycleService() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (!isDragging) {
-                        stateStore.dispatch(AssistantEvent.BubbleTap)
-                        if (voiceEngine?.isRunning == false) {
+                        val current = stateStore.state.value
+                        if (!current.sessionActive) {
+                            stateStore.dispatch(AssistantEvent.StartSession)
                             voiceEngine?.startSession(lifecycleScope)
+                        } else {
+                            stopSession()
                         }
                     } else {
                         snapBubbleToEdge(p)
@@ -446,90 +453,25 @@ class AssistantService : LifecycleService() {
         animator.start()
     }
 
-    private fun initPanelWindow() {
-        val screenBounds = getScreenBounds()
-        val insets = getSystemInsets()
-        val panelWidth = (screenBounds.width() * 0.92f).toInt()
-
-        val params = overlayWindowManager.createDefaultParams(
-            width = panelWidth,
-            height = WRAP_CONTENT,
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-            x = 0,
-            y = insets.bottom + 32,
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        )
-
+    private fun initTopBubbleWindow() {
         val composeView = ComposeView(this).apply {
             setContent {
                 val state by stateStore.state.collectAsState()
-                PanelContent(
-                    uiState = state,
-                    onMinimize = {
-                        stateStore.dispatch(AssistantEvent.MinimizePanel)
-                    },
+                TopSpeechBubbleView(
+                    state = state,
                     onStopSession = {
-                        voiceEngine?.endSession()
-                        stateStore.dispatch(AssistantEvent.StopSession)
-                    },
-                    onConfirm = { accepted ->
-                        if (accepted) {
-                            stateStore.dispatch(AssistantEvent.SetExecuting("User confirmed action", 1, 1))
-                        } else {
-                            stateStore.dispatch(AssistantEvent.SetWaiting)
-                        }
-                    },
-                    onSendText = { text ->
-                        stateStore.dispatch(
-                            AssistantEvent.AppendMessage(
-                                ChatItem(
-                                    id = UUID.randomUUID().toString(),
-                                    role = ChatRole.USER,
-                                    content = text
-                                )
-                            )
-                        )
-                        stateStore.dispatch(AssistantEvent.SetProcessing)
-                        agentLoop?.startTask(text, lifecycleScope)
-                    },
-                    onFocusChange = { isFocused ->
-                        overlayWindowManager.setFocusable(KEY_PANEL, isFocused)
+                        stopSession()
                     }
                 )
             }
         }
-        panelView = composeView
-        // Added dynamically based on state.panelExpanded
+        topBubbleView = composeView
     }
 
-    private fun initStatusPillWindow() {
-        val insets = getSystemInsets()
-        val params = overlayWindowManager.createDefaultParams(
-            width = WRAP_CONTENT,
-            height = WRAP_CONTENT,
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL,
-            x = 0,
-            y = insets.top + 16,
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        )
-
-        val composeView = ComposeView(this).apply {
-            setContent {
-                val state by stateStore.state.collectAsState()
-                StatusPillContent(
-                    state = state.assistant,
-                    onStop = {
-                        stateStore.dispatch(AssistantEvent.StopSession)
-                    }
-                )
-            }
-        }
-        statusPillView = composeView
-        // Added dynamically based on state
+    private fun stopSession() {
+        voiceEngine?.endSession()
+        agentLoop?.cancel()
+        stateStore.dispatch(AssistantEvent.StopSession)
     }
 
     private fun initHighlightWindow() {
@@ -556,7 +498,6 @@ class AssistantService : LifecycleService() {
             }
         }
         highlightView = composeView
-        // Added dynamically when highlights exist
     }
 
     private fun observeState() {
@@ -568,64 +509,33 @@ class AssistantService : LifecycleService() {
                 // Update foreground type
                 updateForegroundType(state.assistant is AssistantState.Listening)
 
-                // Manage Panel window
-                if (state.panelExpanded) {
-                    if (!overlayWindowManager.hasWindow(KEY_PANEL)) {
-                        panelView?.let { pv ->
+                // Manage Top WhatsApp Speech Bubble window (Requirement 1 & 2)
+                if (state.sessionActive) {
+                    if (!overlayWindowManager.hasWindow(KEY_TOP_BUBBLE)) {
+                        topBubbleView?.let { tbv ->
                             val screenBounds = getScreenBounds()
                             val insets = getSystemInsets()
-                            val panelWidth = (screenBounds.width() * 0.92f).toInt()
+                            val bubbleWidth = (screenBounds.width() * 0.94f).toInt()
                             val params = overlayWindowManager.createDefaultParams(
-                                width = panelWidth,
+                                width = bubbleWidth,
                                 height = WRAP_CONTENT,
-                                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-                                x = 0,
-                                y = insets.bottom + 32,
+                                gravity = Gravity.TOP or Gravity.START,
+                                x = (screenBounds.width() * 0.03f).toInt(),
+                                y = insets.top + 12,
                                 flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                             )
-                            overlayWindowManager.addWindow(KEY_PANEL, pv, params)
+                            overlayWindowManager.addWindow(KEY_TOP_BUBBLE, tbv, params)
                         }
                     }
                 } else {
-                    if (overlayWindowManager.hasWindow(KEY_PANEL)) {
-                        overlayWindowManager.removeWindow(KEY_PANEL)
+                    if (overlayWindowManager.hasWindow(KEY_TOP_BUBBLE)) {
+                        overlayWindowManager.removeWindow(KEY_TOP_BUBBLE)
                     }
                 }
 
-                // Manage Status Pill window (shown when panel minimized and actively executing/observing/confirming)
-                val showPill = !state.panelExpanded && (
-                    state.assistant is AssistantState.Executing ||
-                        state.assistant is AssistantState.Observing ||
-                        state.assistant is AssistantState.Processing ||
-                        state.assistant is AssistantState.Confirming
-                    )
-
-                if (showPill) {
-                    if (!overlayWindowManager.hasWindow(KEY_STATUS_PILL)) {
-                        statusPillView?.let { spv ->
-                            val insets = getSystemInsets()
-                            val params = overlayWindowManager.createDefaultParams(
-                                width = WRAP_CONTENT,
-                                height = WRAP_CONTENT,
-                                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL,
-                                x = 0,
-                                y = insets.top + 16,
-                                flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-                            )
-                            overlayWindowManager.addWindow(KEY_STATUS_PILL, spv, params)
-                        }
-                    }
-                } else {
-                    if (overlayWindowManager.hasWindow(KEY_STATUS_PILL)) {
-                        overlayWindowManager.removeWindow(KEY_STATUS_PILL)
-                    }
-                }
-
-                // Manage Highlight window
+                // Manage Highlight window (Touching Ball)
                 val showHighlight = state.targetBounds != null || state.debugElements.isNotEmpty()
                 if (showHighlight) {
                     if (!overlayWindowManager.hasWindow(KEY_HIGHLIGHT)) {
@@ -688,8 +598,7 @@ class AssistantService : LifecycleService() {
         const val ACTION_QUIT = "com.omnicontrol.action.QUIT_ASSISTANT"
 
         const val KEY_BUBBLE = "bubble"
-        const val KEY_PANEL = "panel"
-        const val KEY_STATUS_PILL = "status_pill"
+        const val KEY_TOP_BUBBLE = "top_bubble"
         const val KEY_HIGHLIGHT = "highlight"
 
         val stateStore = AssistantStateStore()

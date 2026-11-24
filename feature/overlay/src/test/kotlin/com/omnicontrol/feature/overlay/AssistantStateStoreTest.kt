@@ -32,10 +32,15 @@ class AssistantStateStoreTest {
         assertTrue(started.sessionActive)
         assertEquals(AssistantState.Listening, started.assistant)
 
-        val stopped = store.reduce(started, AssistantEvent.StopSession)
+        val message = ChatItem(id = "1", role = ChatRole.USER, content = "Open YouTube")
+        val withMessage = store.reduce(started, AssistantEvent.AppendMessage(message))
+        assertEquals(1, withMessage.messages.size)
+
+        val stopped = store.reduce(withMessage, AssistantEvent.StopSession)
         assertFalse(stopped.sessionActive)
         assertEquals(AssistantState.Idle, stopped.assistant)
         assertEquals("", stopped.partialTranscript)
+        assertTrue(stopped.messages.isEmpty())
     }
 
     @Test
