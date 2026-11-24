@@ -1,0 +1,100 @@
+# OmniControl — Progress Tracker
+
+Antigravity: tick a box (`[x]`) after each task builds and works, and add a short note.
+Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-11-25)`
+
+## Phase 0 — Environment & Spikes
+- [ ] 0.1 Inspect Mac environment
+- [ ] 0.2 Inspect phone
+- [ ] 0.3 Create project + base modules + git
+- [ ] 0.4 Version catalog + build checks
+- [ ] 0.5 Spike A — accessibility tree + screenshot
+- [ ] 0.6 Spike B — sherpa-onnx streaming ASR + VAD
+- [ ] 0.7 Spike C — llama.cpp JNI + grammar JSON
+- [ ] 0.8 Spike D — microphone foreground service from overlay tap
+- [ ] 0.9 Docs: ARCHITECTURE.md, MODELS.md, CAPABILITIES.md
+- [ ] 0.10 Phase 0 report
+
+## Phase 1 — App Shell & Permissions
+- [ ] 1.1 Hilt + app class + navigation
+- [ ] 1.2 Theme (dark premium)
+- [ ] 1.3 Settings (DataStore)
+- [ ] 1.4 Room database skeleton
+- [ ] 1.5 Permission checker
+- [ ] 1.6 Permission wizard screens
+- [ ] 1.7 Capability Report
+- [ ] 1.8 Dashboard, History, Model Manager screens
+- [ ] 1.9 Phase 1 report
+
+## Phase 2 — Floating Overlay
+- [ ] 2.1 AssistantStateStore (state machine)
+- [ ] 2.2 AssistantService (foreground, specialUse)
+- [ ] 2.3 Overlay lifecycle owner + window manager helper
+- [ ] 2.4 Bubble (drag, snap, insets)
+- [ ] 2.5 Panel (expand/minimize, conversation list)
+- [ ] 2.6 Status pill + target highlight layer
+- [ ] 2.7 Notification with Stop
+- [ ] 2.8 Phase 2 report
+
+## Phase 3 — Accessibility & Actions
+- [ ] 3.1 Accessibility service (final config)
+- [ ] 3.2 ScreenReader → Observation
+- [ ] 3.3 Fingerprint + element IDs
+- [ ] 3.4 Screen settle detector
+- [ ] 3.5 ActionExecutor (all actions)
+- [ ] 3.6 Verifier
+- [ ] 3.7 Overlay-safe tapping
+- [ ] 3.8 Manual Test Console + debug boxes
+- [ ] 3.9 Tree dump export + unit tests
+- [ ] 3.10 Phase 3 report
+
+## Phase 4 — Voice Engine
+- [ ] 4.1 Model setup (ASR, VAD, KWS)
+- [ ] 4.2 AudioCapture
+- [ ] 4.3 VAD + streaming ASR pipeline
+- [ ] 4.4 Keyword spotter (stop/cancel/done)
+- [ ] 4.5 VoiceSession loop + mic FGS
+- [ ] 4.6 Hotword biasing
+- [ ] 4.7 TTS
+- [ ] 4.8 Temporary FastRouter hookup
+- [ ] 4.9 Phase 4 report
+
+## Phase 5 — AI Agent
+- [ ] 5.1 LlmEngine interface + llama.cpp backend
+- [ ] 5.2 Action grammar + schema + validator
+- [ ] 5.3 Observation serializer + PromptBuilder
+- [ ] 5.4 FastRouter (full)
+- [ ] 5.5 ConversationManager
+- [ ] 5.6 Agent loop (ReAct) + sub-goals
+- [ ] 5.7 SafetyGuard + confirm/handoff
+- [ ] 5.8 Home Brain backend (optional)
+- [ ] 5.9 Evaluation harness
+- [ ] 5.10 Phase 5 report
+
+## Phase 6 — Visual Understanding
+- [ ] 6.1 ScreenshotManager
+- [ ] 6.2 OCR + merge
+- [ ] 6.3 Color analysis
+- [ ] 6.4 Image-text matcher (CLIP-style)
+- [ ] 6.5 Set-of-Marks renderer
+- [ ] 6.6 On-demand VLM
+- [ ] 6.7 Vision tool in agent + clarification
+- [ ] 6.8 Phase 6 report
+
+## Phase 7 — Navigator, Memory, Routines
+- [ ] 7.1 Element signatures + screen nodes
+- [ ] 7.2 Screen graph recording
+- [ ] 7.3 Route finding + stale edge handling
+- [ ] 7.4 Deep link table
+- [ ] 7.5 Routines + aliases
+- [ ] 7.6 Teach mode
+- [ ] 7.7 Session clipboard + find + popup handler
+- [ ] 7.8 Five cross-app workflows pass
+- [ ] 7.9 Phase 7 report
+
+## Phase 8 — Hardening & Polish
+- [ ] 8.1 Interruption tests
+- [ ] 8.2 Performance + battery
+- [ ] 8.3 Privacy audit
+- [ ] 8.4 Final docs
+- [ ] 8.5 Phase 8 report
