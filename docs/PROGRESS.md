@@ -16,15 +16,15 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 0.10 Phase 0 report — note: written to docs/phases/PHASE_0_REPORT.md (2026-11-24)
 
 ## Phase 1 — App Shell & Permissions
-- [ ] 1.1 Hilt + app class + navigation
-- [ ] 1.2 Theme (dark premium)
-- [ ] 1.3 Settings (DataStore)
-- [ ] 1.4 Room database skeleton
-- [ ] 1.5 Permission checker
-- [ ] 1.6 Permission wizard screens
-- [ ] 1.7 Capability Report
-- [ ] 1.8 Dashboard, History, Model Manager screens
-- [ ] 1.9 Phase 1 report
+- [x] 1.1 Hilt + app class + navigation — note: Hilt, OmniApp, and Navigation Compose routes (2026-11-24)
+- [x] 1.2 Theme (dark premium) — note: custom dark palette with assistant ring states (2026-11-24)
+- [x] 1.3 Settings (DataStore) — note: OmniSettings with Flow and suspend setters (2026-11-24)
+- [x] 1.4 Room database skeleton — note: OmniDatabase, 5 entities & DAOs in :core:database (2026-11-24)
+- [x] 1.5 Permission checker — note: PermissionChecker with reactive StateFlow in :feature:permissions (2026-11-24)
+- [x] 1.6 Permission wizard screens — note: interactive cards with intent fallbacks and green banner (2026-11-24)
+- [x] 1.7 Capability Report — note: hardware RAM tiers, specs, and feature traffic lights (2026-11-24)
+- [x] 1.8 Dashboard, History, Model Manager screens — note: all primary screens + Developer spikes screen (2026-11-24)
+- [x] 1.9 Phase 1 report — note: written to docs/phases/PHASE_1_REPORT.md (2026-11-24)
 
 ## Phase 2 — Floating Overlay
 - [ ] 2.1 AssistantStateStore (state machine)

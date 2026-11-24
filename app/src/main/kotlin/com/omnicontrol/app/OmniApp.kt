@@ -6,12 +6,14 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import com.omnicontrol.core.common.OmniLog
+import dagger.hilt.android.HiltAndroidApp
 
-class OmniApplication : Application() {
+@HiltAndroidApp
+class OmniApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        OmniLog.i("App", "OmniApplication created")
+        OmniLog.i("App", "OmniApp initialized with Hilt")
         createNotificationChannels()
     }
 

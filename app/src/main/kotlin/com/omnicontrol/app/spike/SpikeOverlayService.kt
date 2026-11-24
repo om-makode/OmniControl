@@ -20,7 +20,7 @@ import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.omnicontrol.app.MainActivity
-import com.omnicontrol.app.OmniApplication
+import com.omnicontrol.app.OmniApp
 import com.omnicontrol.app.R
 import com.omnicontrol.core.common.OmniLog
 import kotlinx.coroutines.CoroutineScope
@@ -85,7 +85,7 @@ class SpikeOverlayService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, OmniApplication.CHANNEL_ID_OVERLAY)
+        return NotificationCompat.Builder(this, OmniApp.CHANNEL_ID_OVERLAY)
             .setContentTitle("OmniControl Spike D")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
