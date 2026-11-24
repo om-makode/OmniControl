@@ -26,6 +26,22 @@
             </intent-filter>
         </activity>
 
+        <service
+            android:name=".spike.SpikeOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|microphone">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating assistant bubble that the user taps to give voice commands" />
+        </service>
+
+        <activity
+            android:name=".spike.TrampolineActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
     </application>
 
 </manifest>
