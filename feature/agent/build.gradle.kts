@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":native:llama"))
     implementation(project(":feature:accessibility"))
     implementation(project(":feature:voice"))
+    implementation(project(":feature:vision"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)

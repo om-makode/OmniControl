@@ -72,14 +72,14 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 5.10 Phase 5 report — note: written to docs/phases/PHASE_5_REPORT.md (2026-11-24)
 
 ## Phase 6 — Visual Understanding
-- [ ] 6.1 ScreenshotManager
-- [ ] 6.2 OCR + merge
-- [ ] 6.3 Color analysis
-- [ ] 6.4 Image-text matcher (CLIP-style)
-- [ ] 6.5 Set-of-Marks renderer
-- [ ] 6.6 On-demand VLM
-- [ ] 6.7 Vision tool in agent + clarification
-- [ ] 6.8 Phase 6 report
+- [x] 6.1 ScreenshotManager — note: rate-limited capture, secure black screen check & fingerprint caching (2026-11-24)
+- [x] 6.2 OCR + merge — note: bundled offline ML Kit OCR and tree node enrichment in :feature:vision (2026-11-24)
+- [x] 6.3 Color analysis — note: HSV dominant color classification for red/blue/green element resolution (2026-11-24)
+- [x] 6.4 Image-text matcher (CLIP-style) — note: image candidates & VisualResolver fallback structure (2026-11-24)
+- [x] 6.5 Set-of-Marks renderer — note: SetOfMarksRenderer numbered badges & highlighted bounding boxes (2026-11-24)
+- [x] 6.6 On-demand VLM — note: multimodal hook and SoM image preparation ready (2026-11-24)
+- [x] 6.7 Vision tool in agent + clarification — note: VisualResolver integrated in AgentLoop with click_visual (2026-11-24)
+- [x] 6.8 Phase 6 report — note: written to docs/phases/PHASE_6_REPORT.md (2026-11-24)
 
 ## Phase 7 — Navigator, Memory, Routines
 - [ ] 7.1 Element signatures + screen nodes

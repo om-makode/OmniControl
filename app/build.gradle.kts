@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":feature:permissions"))
     implementation(project(":feature:overlay"))
     implementation(project(":feature:agent"))
+    implementation(project(":feature:vision"))
     implementation(project(":native:llama"))
 
     implementation(libs.hilt.android)

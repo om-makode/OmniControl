@@ -12,6 +12,11 @@ import com.omnicontrol.feature.agent.memory.ConversationManager
 import com.omnicontrol.feature.agent.prompt.PromptBuilder
 import com.omnicontrol.feature.agent.safety.RiskLevel
 import com.omnicontrol.feature.agent.safety.SafetyGuard
+import com.omnicontrol.feature.vision.ocr.OcrEngine
+import com.omnicontrol.feature.vision.resolver.VisualResolver
+import com.omnicontrol.feature.vision.resolver.VisualResult
+import com.omnicontrol.feature.vision.screenshot.ScreenshotManager
+import com.omnicontrol.feature.vision.som.SetOfMarksRenderer
 import com.omnicontrol.feature.voice.tts.TtsEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -54,12 +59,21 @@ class AgentLoop(
                 listener?.onStateChanged(AssistantState.Observing)
                 delay(100)
 
-                val obs = OmniAccessibilityService.currentObservation()
+                var obs = OmniAccessibilityService.currentObservation()
                 if (obs == null) {
                     OmniLog.w(TAG, "No accessibility observation available, waiting 1s...")
                     delay(1000)
                     currentStep++
                     continue
+                }
+
+                // If observation has few text elements, enrich with OCR
+                if (obs.elements.count { !it.text.isNullOrBlank() } < 5) {
+                    val bitmap = ScreenshotManager.capture(obs.screenFingerprint)
+                    if (bitmap != null) {
+                        val ocrItems = OcrEngine.recognizeText(bitmap)
+                        obs = OcrEngine.mergeWithObservation(obs, ocrItems)
+                    }
                 }
 
                 conversationManager.recordApp(obs.packageName)
@@ -126,11 +140,43 @@ class AgentLoop(
                 }
 
                 // 4. ACT
-                val actionType = plan.action.type.lowercase().trim()
+                var actionToExecute = plan.action
+                if (actionToExecute.type == "click_visual" || (actionToExecute.type == "click" && actionToExecute.target == null && !actionToExecute.text.isNullOrBlank())) {
+                    val query = actionToExecute.text ?: ""
+                    when (val vRes = VisualResolver.resolve(query, obs)) {
+                        is VisualResult.Found -> {
+                            actionToExecute = actionToExecute.copy(type = "click", target = vRes.element.id)
+                        }
+                        is VisualResult.Ambiguous -> {
+                            val count = vRes.candidates.size
+                            val question = "I found $count possible matches for '$query'. Which one (1 to $count) would you like?"
+                            listener?.onMessage(
+                                ChatItem(
+                                    id = UUID.randomUUID().toString(),
+                                    role = ChatRole.ASSISTANT,
+                                    content = question
+                                )
+                            )
+                            tts?.speak(question)
+                            listener?.onStateChanged(AssistantState.Listening)
+                            break
+                        }
+                        is VisualResult.SecureScreen -> {
+                            listener?.onStateChanged(AssistantState.Paused("Screen is secure/protected. Please proceed manually."))
+                            tts?.speak("Screen is secure. Please proceed manually.")
+                            break
+                        }
+                        is VisualResult.NotFound -> {
+                            OmniLog.w(TAG, "Visual target not found: ${vRes.reason}")
+                        }
+                    }
+                }
+
+                val actionType = actionToExecute.type.lowercase().trim()
                 val stepDesc = plan.thought.ifEmpty { "Executing $actionType" }
                 listener?.onStateChanged(AssistantState.Executing(stepDesc, currentStep, maxSteps))
 
-                val actionResult = OmniAccessibilityService.executeAction(plan.action)
+                val actionResult = OmniAccessibilityService.executeAction(actionToExecute)
 
                 if (actionResult != null) {
                     listener?.onMessage(
@@ -140,7 +186,7 @@ class AgentLoop(
                             content = actionResult.reason,
                             actionDetail = ActionCardDetail(
                                 actionType = actionType,
-                                targetDescription = plan.action.app ?: plan.action.url ?: plan.action.direction ?: "#${plan.action.target}",
+                                targetDescription = actionToExecute.app ?: actionToExecute.url ?: actionToExecute.direction ?: "#${actionToExecute.target}",
                                 isSuccess = actionResult.success,
                                 durationMs = actionResult.durationMs
                             )

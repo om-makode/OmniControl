@@ -15,7 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import java.io.File
 import java.io.FileOutputStream
 
@@ -147,6 +149,45 @@ class OmniAccessibilityService : AccessibilityService() {
             if (!s::screenReader.isInitialized || !s::actionExecutor.isInitialized) return null
             val obs = s.screenReader.captureObservation()
             return s.actionExecutor.execute(action, obs)
+        }
+
+        suspend fun captureScreenshotBitmap(): Bitmap? {
+            val s = instance ?: return null
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+            return suspendCancellableCoroutine { continuation ->
+                try {
+                    s.takeScreenshot(
+                        Display.DEFAULT_DISPLAY,
+                        s.mainExecutor,
+                        object : TakeScreenshotCallback {
+                            override fun onSuccess(screenshotResult: ScreenshotResult) {
+                                val hardwareBuffer = screenshotResult.hardwareBuffer
+                                val colorSpace = screenshotResult.colorSpace
+                                val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)?.copy(
+                                    Bitmap.Config.ARGB_8888,
+                                    false
+                                )
+                                hardwareBuffer.close()
+                                if (continuation.isActive) {
+                                    continuation.resume(bitmap)
+                                }
+                            }
+
+                            override fun onFailure(errorCode: Int) {
+                                OmniLog.w(TAG, "captureScreenshotBitmap failed code: $errorCode")
+                                if (continuation.isActive) {
+                                    continuation.resume(null)
+                                }
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    OmniLog.e(TAG, "captureScreenshotBitmap exception", e)
+                    if (continuation.isActive) {
+                        continuation.resume(null)
+                    }
+                }
+            }
         }
     }
 }

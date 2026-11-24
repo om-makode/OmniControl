@@ -1,0 +1,1 @@
+# Vision module consumer rules
