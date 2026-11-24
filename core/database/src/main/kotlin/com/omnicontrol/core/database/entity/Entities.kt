@@ -75,3 +75,48 @@ data class AppPolicyEntity(
     val requireConfirm: Boolean = false,
     val allowGestures: Boolean = true
 )
+
+@Entity(
+    tableName = "screens",
+    indices = [Index(value = ["pkg", "fp"], unique = true)]
+)
+data class ScreenEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val pkg: String,
+    val fp: String,
+    val label: String,
+    val labelsJson: String = "[]",
+    val appVersionCode: Long = 0L,
+    val lastSeen: Long = System.currentTimeMillis(),
+    val visits: Int = 1
+)
+
+@Entity(
+    tableName = "edges",
+    indices = [Index(value = ["fromScreenId"]), Index(value = ["toScreenId"])]
+)
+data class EdgeEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val fromScreenId: Long,
+    val toScreenId: Long,
+    val actionType: String,
+    val signatureJson: String,
+    val textArg: String? = null,
+    val successCount: Int = 1,
+    val failCount: Int = 0,
+    val lastUsed: Long = System.currentTimeMillis(),
+    val verified: Boolean = true
+)
+
+@Entity(tableName = "routines")
+data class RoutineEntity(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val triggerPhrasesJson: String = "[]",
+    val stepsJson: String = "[]",
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastUsed: Long? = null
+)

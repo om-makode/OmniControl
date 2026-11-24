@@ -8,11 +8,16 @@ import com.omnicontrol.core.database.dao.ActionLogDao
 import com.omnicontrol.core.database.dao.AliasDao
 import com.omnicontrol.core.database.dao.AppPolicyDao
 import com.omnicontrol.core.database.dao.MessageDao
+import com.omnicontrol.core.database.dao.RoutineDao
+import com.omnicontrol.core.database.dao.ScreenGraphDao
 import com.omnicontrol.core.database.dao.SessionDao
 import com.omnicontrol.core.database.entity.ActionLogEntity
 import com.omnicontrol.core.database.entity.AliasEntity
 import com.omnicontrol.core.database.entity.AppPolicyEntity
+import com.omnicontrol.core.database.entity.EdgeEntity
 import com.omnicontrol.core.database.entity.MessageEntity
+import com.omnicontrol.core.database.entity.RoutineEntity
+import com.omnicontrol.core.database.entity.ScreenEntity
 import com.omnicontrol.core.database.entity.SessionEntity
 
 @Database(
@@ -21,9 +26,12 @@ import com.omnicontrol.core.database.entity.SessionEntity
         MessageEntity::class,
         ActionLogEntity::class,
         AliasEntity::class,
-        AppPolicyEntity::class
+        AppPolicyEntity::class,
+        ScreenEntity::class,
+        EdgeEntity::class,
+        RoutineEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class OmniDatabase : RoomDatabase() {
@@ -32,6 +40,8 @@ abstract class OmniDatabase : RoomDatabase() {
     abstract fun actionLogDao(): ActionLogDao
     abstract fun aliasDao(): AliasDao
     abstract fun appPolicyDao(): AppPolicyDao
+    abstract fun screenGraphDao(): ScreenGraphDao
+    abstract fun routineDao(): RoutineDao
 
     companion object {
         private const val DB_NAME = "omnicontrol.db"

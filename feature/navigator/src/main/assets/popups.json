@@ -1,0 +1,34 @@
+[
+  {
+    "buttonText": "Not now",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Skip",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Skip ad",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "No thanks",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Maybe later",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Close",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Dismiss",
+    "pattern": ".*"
+  },
+  {
+    "buttonText": "Got it",
+    "pattern": ".*"
+  }
+]

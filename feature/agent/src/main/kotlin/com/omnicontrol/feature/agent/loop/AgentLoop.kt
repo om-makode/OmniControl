@@ -12,6 +12,8 @@ import com.omnicontrol.feature.agent.memory.ConversationManager
 import com.omnicontrol.feature.agent.prompt.PromptBuilder
 import com.omnicontrol.feature.agent.safety.RiskLevel
 import com.omnicontrol.feature.agent.safety.SafetyGuard
+import com.omnicontrol.feature.navigator.clipboard.SessionClipboard
+import com.omnicontrol.feature.navigator.popup.PopupHandler
 import com.omnicontrol.feature.vision.ocr.OcrEngine
 import com.omnicontrol.feature.vision.resolver.VisualResolver
 import com.omnicontrol.feature.vision.resolver.VisualResult
@@ -74,6 +76,22 @@ class AgentLoop(
                         val ocrItems = OcrEngine.recognizeText(bitmap)
                         obs = OcrEngine.mergeWithObservation(obs, ocrItems)
                     }
+                }
+
+                // Check and auto-dismiss annoying promo/skip popups
+                val popup = PopupHandler.checkPopup(obs)
+                if (popup != null) {
+                    OmniLog.i(TAG, "Auto-dismissing popup: '${popup.dismissText}'")
+                    OmniAccessibilityService.executeAction(com.omnicontrol.core.model.AgentAction(type = "click", target = popup.element.id))
+                    listener?.onMessage(
+                        ChatItem(
+                            id = UUID.randomUUID().toString(),
+                            role = ChatRole.ACTION,
+                            content = "Closed a popup: ${popup.dismissText}"
+                        )
+                    )
+                    delay(300)
+                    continue
                 }
 
                 conversationManager.recordApp(obs.packageName)
@@ -170,6 +188,33 @@ class AgentLoop(
                             OmniLog.w(TAG, "Visual target not found: ${vRes.reason}")
                         }
                     }
+                }
+
+                if (actionToExecute.type == "copy_text") {
+                    val extracted = if (!actionToExecute.text.isNullOrBlank()) {
+                        actionToExecute.text!!
+                    } else {
+                        SessionClipboard.extractUrlFromObservation(obs) ?: ""
+                    }
+                    SessionClipboard.copyText(extracted)
+                    val desc = if (extracted.isNotBlank()) "Copied: $extracted" else "Copied text to session clipboard"
+                    listener?.onMessage(
+                        ChatItem(
+                            id = UUID.randomUUID().toString(),
+                            role = ChatRole.ACTION,
+                            content = desc,
+                            actionDetail = ActionCardDetail(
+                                actionType = "copy_text",
+                                targetDescription = extracted,
+                                isSuccess = true,
+                                durationMs = 15
+                            )
+                        )
+                    )
+                    tts?.speak("Copied.")
+                    currentStep++
+                    delay(300)
+                    continue
                 }
 
                 val actionType = actionToExecute.type.lowercase().trim()

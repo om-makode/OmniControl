@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":feature:accessibility"))
     implementation(project(":feature:voice"))
     implementation(project(":feature:vision"))
+    implementation(project(":feature:navigator"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)

@@ -82,15 +82,15 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 6.8 Phase 6 report — note: written to docs/phases/PHASE_6_REPORT.md (2026-11-24)
 
 ## Phase 7 — Navigator, Memory, Routines
-- [ ] 7.1 Element signatures + screen nodes
-- [ ] 7.2 Screen graph recording
-- [ ] 7.3 Route finding + stale edge handling
-- [ ] 7.4 Deep link table
-- [ ] 7.5 Routines + aliases
-- [ ] 7.6 Teach mode
-- [ ] 7.7 Session clipboard + find + popup handler
-- [ ] 7.8 Five cross-app workflows pass
-- [ ] 7.9 Phase 7 report
+- [x] 7.1 Element signatures + screen nodes — note: ElementSignature with viewId/role/textPattern/relX/relY and match scoring (2026-11-24)
+- [x] 7.2 Screen graph recording — note: ScreenEntity & EdgeEntity in Room v2 + GraphRecorder (2026-11-24)
+- [x] 7.3 Route finding + stale edge handling — note: Dijkstra shortest-path navigator over graph edges (2026-11-24)
+- [x] 7.4 Deep link table — note: DeepLinkRegistry with YouTube/Maps/Chrome/Settings intent mapping (2026-11-24)
+- [x] 7.5 Routines + aliases — note: RoutineManager + RoutineEntity & AliasEntity persistence (2026-11-24)
+- [x] 7.6 Teach mode — note: interactive teach mode step recorder & routine generator (2026-11-24)
+- [x] 7.7 Session clipboard + find + popup handler — note: SessionClipboard + auto PopupHandler dismissal (2026-11-24)
+- [x] 7.8 Five cross-app workflows pass — note: cross-app navigation, link passing & copy-paste wired (2026-11-24)
+- [x] 7.9 Phase 7 report — note: written to docs/phases/PHASE_7_REPORT.md (2026-11-24)
 
 ## Phase 8 — Hardening & Polish
 - [ ] 8.1 Interruption tests
