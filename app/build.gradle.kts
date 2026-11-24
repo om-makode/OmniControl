@@ -45,6 +45,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":feature:accessibility"))
     implementation(project(":feature:voice"))
+    implementation(project(":native:llama"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

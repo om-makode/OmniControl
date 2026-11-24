@@ -39,8 +39,10 @@ import com.omnicontrol.app.spike.SpikeOverlayService
 import com.omnicontrol.app.ui.theme.OmniControlTheme
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
 import com.omnicontrol.feature.voice.AsrSpike
+import com.omnicontrol.native_llama.LlamaNative
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +66,7 @@ fun MainSpikeScreen(modifier: Modifier = Modifier) {
     var asrPartial by remember { mutableStateOf("") }
     var asrFinal by remember { mutableStateOf("") }
     var vadState by remember { mutableStateOf(false) }
+    var llamaOutput by remember { mutableStateOf("") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -214,6 +217,40 @@ fun MainSpikeScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (AsrSpike.isRunning) "Stop ASR Spike" else "Start ASR + VAD Spike")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("--- Spike C (Llama.cpp with Grammar) ---", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Output: $llamaOutput")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                statusText = "Running Llama.cpp inference..."
+                scope.launch {
+                    val llmDir = File(context.filesDir, "models/llm")
+                    val modelFiles = llmDir.listFiles { f -> f.extension == "gguf" }
+                    if (modelFiles.isNullOrEmpty()) {
+                        statusText = "No GGUF models in files/models/llm/ (push with push_models script)"
+                        llamaOutput = "Missing GGUF model"
+                        return@launch
+                    }
+                    val model = modelFiles.first()
+                    statusText = "Running on ${model.name}..."
+                    val result = LlamaNative.testGenerate(model)
+                    result.onSuccess { output ->
+                        llamaOutput = output
+                        statusText = "Inference completed!"
+                    }.onFailure { err ->
+                        llamaOutput = "Error: ${err.message}"
+                        statusText = "Inference failed"
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Spike C: Test Llama.cpp with Grammar")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
