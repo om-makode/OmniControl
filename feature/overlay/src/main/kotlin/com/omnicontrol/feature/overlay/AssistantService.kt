@@ -41,6 +41,12 @@ import com.omnicontrol.feature.overlay.ui.PanelContent
 import com.omnicontrol.feature.overlay.ui.StatusPillContent
 import com.omnicontrol.feature.overlay.window.OverlayWindowManager
 import com.omnicontrol.feature.voice.VoiceEngine
+import com.omnicontrol.feature.agent.loop.AgentLoop
+import com.omnicontrol.feature.agent.loop.AgentEventListener
+import com.omnicontrol.feature.agent.llm.LlmEngine
+import com.omnicontrol.feature.agent.llm.LlamaCppEngine
+import com.omnicontrol.feature.agent.llm.FallbackLlmEngine
+import com.omnicontrol.feature.agent.memory.ConversationManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -57,6 +63,7 @@ class AssistantService : LifecycleService() {
     private var statusPillView: ComposeView? = null
     private var highlightView: ComposeView? = null
     private var voiceEngine: VoiceEngine? = null
+    private var agentLoop: AgentLoop? = null
 
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var isDragging = false
@@ -103,6 +110,7 @@ class AssistantService : LifecycleService() {
                 }
             }
             ACTION_STOP -> {
+                agentLoop?.cancel()
                 voiceEngine?.endSession()
                 stateStore.dispatch(AssistantEvent.StopSession)
             }
@@ -122,6 +130,8 @@ class AssistantService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         OmniLog.i(TAG, "AssistantService onDestroy")
+        agentLoop?.cancel()
+        agentLoop = null
         voiceEngine?.shutdown()
         voiceEngine = null
         overlayWindowManager.removeAll()
@@ -173,8 +183,36 @@ class AssistantService : LifecycleService() {
                 stateStore.dispatch(AssistantEvent.SetWaiting)
             }
         }
-        ve.onLlmPassRequired = {
+        val modelFile = LlamaCppEngine.findModelFile(this)
+        val llmEngine: LlmEngine = if (modelFile != null) {
+            val llama = LlamaCppEngine(modelFile)
+            lifecycleScope.launch { llama.load() }
+            llama
+        } else {
+            FallbackLlmEngine()
+        }
+        agentLoop = AgentLoop(
+            llmEngine = llmEngine,
+            conversationManager = ConversationManager(),
+            listener = object : AgentEventListener {
+                override fun onStateChanged(state: AssistantState) {
+                    stateStore.dispatch(AssistantEvent.SetAssistantState(state))
+                }
+
+                override fun onMessage(item: ChatItem) {
+                    stateStore.dispatch(AssistantEvent.AppendMessage(item))
+                }
+
+                override fun onCurrentApp(appLabel: String) {
+                    stateStore.dispatch(AssistantEvent.SetCurrentApp(appLabel))
+                }
+            },
+            tts = ve.tts
+        )
+
+        ve.onLlmPassRequired = { utterance ->
             stateStore.dispatch(AssistantEvent.SetProcessing)
+            agentLoop?.startTask(utterance, lifecycleScope)
         }
         ve.onTaskInterrupted = {
             stateStore.dispatch(AssistantEvent.SetWaiting)
@@ -431,6 +469,7 @@ class AssistantService : LifecycleService() {
                             )
                         )
                         stateStore.dispatch(AssistantEvent.SetProcessing)
+                        agentLoop?.startTask(text, lifecycleScope)
                     },
                     onFocusChange = { isFocused ->
                         overlayWindowManager.setFocusable(KEY_PANEL, isFocused)

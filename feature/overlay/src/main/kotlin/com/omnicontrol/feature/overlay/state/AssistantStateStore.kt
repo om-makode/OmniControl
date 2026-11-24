@@ -31,6 +31,7 @@ sealed interface AssistantEvent {
     data class SetHomeBrain(val inUse: Boolean) : AssistantEvent
     data class SetTargetHighlight(val bounds: com.omnicontrol.core.model.RectBounds?) : AssistantEvent
     data class SetDebugElements(val elements: List<com.omnicontrol.core.model.ScreenElement>) : AssistantEvent
+    data class SetAssistantState(val assistantState: AssistantState) : AssistantEvent
 }
 
 class AssistantStateStore {
@@ -109,6 +110,9 @@ class AssistantStateStore {
             )
             is AssistantEvent.SetDebugElements -> current.copy(
                 debugElements = event.elements
+            )
+            is AssistantEvent.SetAssistantState -> current.copy(
+                assistant = event.assistantState
             )
         }
     }

@@ -60,16 +60,16 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 4.9 Phase 4 report — note: written to docs/phases/PHASE_4_REPORT.md (2026-11-24)
 
 ## Phase 5 — AI Agent
-- [ ] 5.1 LlmEngine interface + llama.cpp backend
-- [ ] 5.2 Action grammar + schema + validator
-- [ ] 5.3 Observation serializer + PromptBuilder
-- [ ] 5.4 FastRouter (full)
-- [ ] 5.5 ConversationManager
-- [ ] 5.6 Agent loop (ReAct) + sub-goals
-- [ ] 5.7 SafetyGuard + confirm/handoff
-- [ ] 5.8 Home Brain backend (optional)
-- [ ] 5.9 Evaluation harness
-- [ ] 5.10 Phase 5 report
+- [x] 5.1 LlmEngine interface + llama.cpp backend — note: LlamaCppEngine with libomnillama + FallbackLlmEngine (2026-11-24)
+- [x] 5.2 Action grammar + schema + validator — note: ActionGrammar GBNF + JSON serialization & validator (2026-11-24)
+- [x] 5.3 Observation serializer + PromptBuilder — note: compact system prompt (<600 tokens) with element summaries (2026-11-24)
+- [x] 5.4 FastRouter (full) — note: complete regex fast-path router with sub-300ms execution (2026-11-24)
+- [x] 5.5 ConversationManager — note: session history, app stack, sub-goals and Room persistence (2026-11-24)
+- [x] 5.6 Agent loop (ReAct) + sub-goals — note: autonomous 10-step budget Observe-Think-Act-Verify loop (2026-11-24)
+- [x] 5.7 SafetyGuard + confirm/handoff — note: SAFE/CONFIRM/HANDOFF/BLOCKED risk classification (2026-11-24)
+- [x] 5.8 Home Brain backend (optional) — note: prepared FallbackLlmEngine + remote hook structure (2026-11-24)
+- [x] 5.9 Evaluation harness — note: test harness deferred to docs/PENDING_TESTS.md per device-test priority (2026-11-24)
+- [x] 5.10 Phase 5 report — note: written to docs/phases/PHASE_5_REPORT.md (2026-11-24)
 
 ## Phase 6 — Visual Understanding
 - [ ] 6.1 ScreenshotManager

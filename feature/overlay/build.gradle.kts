@@ -31,8 +31,10 @@ kotlin {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
+    implementation(project(":core:database"))
     implementation(project(":feature:voice"))
     implementation(project(":feature:accessibility"))
+    implementation(project(":feature:agent"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.service)
