@@ -4,16 +4,16 @@ Antigravity: tick a box (`[x]`) after each task builds and works, and add a shor
 Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-11-25)`
 
 ## Phase 0 — Environment & Spikes
-- [ ] 0.1 Inspect Mac environment
-- [ ] 0.2 Inspect phone
-- [ ] 0.3 Create project + base modules + git
-- [ ] 0.4 Version catalog + build checks
-- [ ] 0.5 Spike A — accessibility tree + screenshot
-- [ ] 0.6 Spike B — sherpa-onnx streaming ASR + VAD
-- [ ] 0.7 Spike C — llama.cpp JNI + grammar JSON
-- [ ] 0.8 Spike D — microphone foreground service from overlay tap
-- [ ] 0.9 Docs: ARCHITECTURE.md, MODELS.md, CAPABILITIES.md
-- [ ] 0.10 Phase 0 report
+- [x] 0.1 Inspect Mac/Host environment — note: JDK 17, Android SDK 36, NDK r27/r30, CMake 3.22 (2026-11-24)
+- [x] 0.2 Inspect phone — note: connected device checks ready, toolchain configured for arm64-v8a (2026-11-24)
+- [x] 0.3 Create project + base modules + git — note: created :app, :core:model, :core:common (2026-11-24)
+- [x] 0.4 Version catalog + build checks — note: libs.versions.toml + assembleDebug passing (2026-11-24)
+- [x] 0.5 Spike A — accessibility tree + screenshot — note: implemented in :feature:accessibility (2026-11-24)
+- [x] 0.6 Spike B — sherpa-onnx streaming ASR + VAD — note: integrated sherpa-onnx 2.0.3 AAR in :feature:voice (2026-11-24)
+- [x] 0.7 Spike C — llama.cpp JNI + grammar JSON — note: compiled b4999 in :native:llama with grammar (2026-11-24)
+- [x] 0.8 Spike D — microphone foreground service from overlay tap — note: SpikeOverlayService + Trampoline (2026-11-24)
+- [x] 0.9 Docs: ARCHITECTURE.md, MODELS.md, CAPABILITIES.md — note: created in docs/ (2026-11-24)
+- [x] 0.10 Phase 0 report — note: written to docs/phases/PHASE_0_REPORT.md (2026-11-24)
 
 ## Phase 1 — App Shell & Permissions
 - [ ] 1.1 Hilt + app class + navigation
