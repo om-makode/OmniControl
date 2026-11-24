@@ -230,9 +230,11 @@ class ActionExecutor(
             val targetNode = findNodeForElement(root, element)
             if (targetNode != null) {
                 nodeClicked = clickNodeOrParent(targetNode)
-                targetNode.recycle()
+                if (targetNode !== root) {
+                    targetNode.safeRecycle()
+                }
             }
-            root.recycle()
+            root.safeRecycle()
         }
 
         if (nodeClicked) return true
@@ -255,9 +257,11 @@ class ActionExecutor(
             val targetNode = findNodeForElement(root, element)
             if (targetNode != null) {
                 nodeClicked = targetNode.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
-                targetNode.recycle()
+                if (targetNode !== root) {
+                    targetNode.safeRecycle()
+                }
             }
-            root.recycle()
+            root.safeRecycle()
         }
 
         if (nodeClicked) return true
@@ -275,7 +279,7 @@ class ActionExecutor(
         val root = service.rootInActiveWindow ?: return false
         val targetNode = findNodeForElement(root, element)
         if (targetNode == null) {
-            root.recycle()
+            root.safeRecycle()
             return false
         }
 
@@ -290,8 +294,10 @@ class ActionExecutor(
             targetNode.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
         }
 
-        targetNode.recycle()
-        root.recycle()
+        if (targetNode !== root) {
+            targetNode.safeRecycle()
+        }
+        root.safeRecycle()
         return textSet
     }
 
@@ -301,7 +307,7 @@ class ActionExecutor(
 
         val root = service.rootInActiveWindow ?: return false
         val targetNode = findNodeForElement(root, element) ?: run {
-            root.recycle()
+            root.safeRecycle()
             return false
         }
 
@@ -309,8 +315,10 @@ class ActionExecutor(
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
         }
         val cleared = targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        targetNode.recycle()
-        root.recycle()
+        if (targetNode !== root) {
+            targetNode.safeRecycle()
+        }
+        root.safeRecycle()
         return cleared
     }
 
@@ -331,12 +339,14 @@ class ActionExecutor(
                 val node = findNodeForElement(root, targetElement)
                 if (node != null) {
                     val scrolled = node.performAction(action)
-                    node.recycle()
-                    root.recycle()
+                    if (node !== root) {
+                        node.safeRecycle()
+                    }
+                    root.safeRecycle()
                     if (scrolled) return true
                 }
             }
-            root.recycle()
+            root.safeRecycle()
         }
 
         // Fallback: swipe gesture
@@ -378,11 +388,11 @@ class ActionExecutor(
         var parent = node.parent
         while (parent != null) {
             if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                parent.recycle()
+                parent.safeRecycle()
                 return true
             }
             val nextParent = parent.parent
-            parent.recycle()
+            parent.safeRecycle()
             parent = nextParent
         }
         return false
@@ -399,11 +409,11 @@ class ActionExecutor(
             val found = findNodeForElement(child, element)
             if (found != null) {
                 if (found !== child) {
-                    child.recycle()
+                    child.safeRecycle()
                 }
                 return found
             }
-            child.recycle()
+            child.safeRecycle()
         }
         return null
     }
@@ -453,5 +463,19 @@ class ActionExecutor(
 
     companion object {
         private const val TAG = "ActionExecutor"
+
+        internal fun safeRecycle(node: AccessibilityNodeInfo?) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                try {
+                    node?.recycle()
+                } catch (_: Throwable) {
+                    // Suppress IllegalStateException: Already in the pool!
+                }
+            }
+        }
     }
+}
+
+private fun AccessibilityNodeInfo?.safeRecycle() {
+    ActionExecutor.safeRecycle(this)
 }

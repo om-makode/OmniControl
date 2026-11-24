@@ -77,7 +77,7 @@ class AgentLoop(
                 )
                 conversationManager.recordTurn("assistant", "$actionType -> ${actionResult.reason}")
             }
-            listener?.onStateChanged(AssistantState.Waiting)
+            listener?.onStateChanged(AssistantState.Listening)
             conversationManager.endSession("COMPLETED")
             isRunning = false
             return
@@ -139,13 +139,19 @@ class AgentLoop(
                 OmniLog.d(TAG, "Querying LLM with prompt (${prompt.length} chars)...")
                 val llmOutputResult = llmEngine.generate(prompt, ActionGrammar.GBNF_GRAMMAR, maxTokens = 256)
 
-                val plan = if (llmOutputResult.isSuccess) {
+                var plan = if (llmOutputResult.isSuccess) {
                     val rawJson = llmOutputResult.getOrThrow()
                     OmniLog.i(TAG, "LLM JSON: $rawJson")
                     ActionGrammar.parsePlan(rawJson).getOrNull()
                 } else {
                     OmniLog.w(TAG, "LLM generation failed: ${llmOutputResult.exceptionOrNull()?.message}")
                     null
+                }
+
+                if (plan == null) {
+                    OmniLog.i(TAG, "Using smart rule-based fallback planner")
+                    val fallbackJson = com.omnicontrol.feature.agent.llm.FallbackLlmEngine.planFromPrompt(prompt)
+                    plan = ActionGrammar.parsePlan(fallbackJson).getOrNull()
                 }
 
                 if (plan == null) {
@@ -283,7 +289,7 @@ class AgentLoop(
                         )
                     )
                     tts?.speak(summary)
-                    listener?.onStateChanged(AssistantState.Waiting)
+                    listener?.onStateChanged(AssistantState.Listening)
                     break
                 }
 

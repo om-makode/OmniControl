@@ -203,7 +203,7 @@ class AssistantService : LifecycleService() {
                         )
                     )
                 }
-                stateStore.dispatch(AssistantEvent.SetWaiting)
+                stateStore.dispatch(AssistantEvent.SetListening)
             }
         }
         val modelFile = LlamaCppEngine.findModelFile(this)

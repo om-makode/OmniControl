@@ -49,7 +49,7 @@ class ScreenReader(private val service: AccessibilityService) {
 
                 // Ignore OmniControl's own overlay windows
                 if (pkg == service.packageName) {
-                    root.recycle()
+                    root.safeRecycle()
                     continue
                 }
 
@@ -77,7 +77,7 @@ class ScreenReader(private val service: AccessibilityService) {
                     currentPackage = pkg
                     interactiveRoots.add(fallbackRoot to false)
                 } else {
-                    fallbackRoot.recycle()
+                    fallbackRoot.safeRecycle()
                 }
             }
         }
@@ -105,7 +105,7 @@ class ScreenReader(private val service: AccessibilityService) {
                 idProvider = { nextId++ },
                 sink = rootElements
             )
-            rootNode.recycle()
+            rootNode.safeRecycle()
 
             if (isDialog) {
                 dialogElementIds.addAll(rootElements.map { it.id })
@@ -229,7 +229,7 @@ class ScreenReader(private val service: AccessibilityService) {
                 idProvider = idProvider,
                 sink = sink
             )
-            child.recycle()
+            child.safeRecycle()
         }
     }
 
@@ -251,7 +251,7 @@ class ScreenReader(private val service: AccessibilityService) {
                 sink.add(desc)
             }
             collectChildTextsRecursive(child, sink)
-            child.recycle()
+            child.safeRecycle()
         }
     }
 
@@ -291,4 +291,8 @@ class ScreenReader(private val service: AccessibilityService) {
             return digest.fold("") { str, it -> str + "%02x".format(it) }.take(16)
         }
     }
+}
+
+private fun AccessibilityNodeInfo?.safeRecycle() {
+    ActionExecutor.safeRecycle(this)
 }

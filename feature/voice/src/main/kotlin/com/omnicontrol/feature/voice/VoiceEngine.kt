@@ -25,6 +25,8 @@ import com.omnicontrol.feature.voice.router.FastRouter
 import com.omnicontrol.feature.voice.tts.TtsEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -209,10 +211,13 @@ class VoiceEngine(
                 }
 
                 val isEndpoint = recognizer?.isEndpoint(s) == true
-                if (isEndpoint && speechDetected && !isTtsSpeaking) {
+                if (isEndpoint && speechDetected) {
                     val finalResult = recognizer?.getResult(s)?.text?.trim() ?: ""
                     OmniLog.i(TAG, "End of speech detected: '$finalResult'")
                     if (finalResult.isNotEmpty()) {
+                        if (isTtsSpeaking) {
+                            tts.stop()
+                        }
                         scope.launch(Dispatchers.Main) {
                             handleUtterance(finalResult)
                         }
@@ -223,6 +228,29 @@ class VoiceEngine(
             }
         )
         return started
+    }
+
+    private var restartJob: Job? = null
+
+    private fun scheduleRestartFallbackListening(delayMs: Long = 150L) {
+        if (!isSessionActive.get()) return
+        restartJob?.cancel()
+        restartJob = CoroutineScope(Dispatchers.Main).launch {
+            delay(delayMs)
+            if (!isSessionActive.get()) return@launch
+            try {
+                androidSpeechRecognizer?.cancel()
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                }
+                androidSpeechRecognizer?.startListening(intent)
+                OmniLog.d(TAG, "Android speech recognizer listening for next command...")
+            } catch (e: Exception) {
+                OmniLog.w(TAG, "Could not restart fallback listening", e)
+            }
+        }
     }
 
     private fun startAndroidFallbackSession(scope: CoroutineScope): Boolean {
@@ -242,7 +270,12 @@ class VoiceEngine(
                             override fun onError(error: Int) {
                                 OmniLog.w(TAG, "SpeechRecognizer error: $error")
                                 if (isSessionActive.get()) {
-                                    restartFallbackListening()
+                                    val delayMs = when (error) {
+                                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 400L
+                                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 100L
+                                        else -> 250L
+                                    }
+                                    scheduleRestartFallbackListening(delayMs)
                                 }
                             }
                             override fun onResults(results: Bundle?) {
@@ -252,7 +285,7 @@ class VoiceEngine(
                                     handleUtterance(text)
                                 }
                                 if (isSessionActive.get()) {
-                                    restartFallbackListening()
+                                    scheduleRestartFallbackListening(150L)
                                 }
                             }
                             override fun onPartialResults(partialResults: Bundle?) {
@@ -270,26 +303,13 @@ class VoiceEngine(
                             override fun onEvent(eventType: Int, params: Bundle?) {}
                         })
                     }
-                    restartFallbackListening()
+                    scheduleRestartFallbackListening(50L)
                 }
             } catch (e: Exception) {
                 OmniLog.e(TAG, "Error starting Android speech recognizer", e)
             }
         }
         return true
-    }
-
-    private fun restartFallbackListening() {
-        try {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            }
-            androidSpeechRecognizer?.startListening(intent)
-        } catch (e: Exception) {
-            OmniLog.w(TAG, "Could not start fallback listening", e)
-        }
     }
 
     private fun handleUtterance(utterance: String) {
@@ -333,6 +353,8 @@ class VoiceEngine(
 
     fun endSession() {
         isSessionActive.set(false)
+        restartJob?.cancel()
+        restartJob = null
         audioSource.stop()
         tts.stop()
         androidSpeechRecognizer?.stopListening()

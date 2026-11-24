@@ -13,3 +13,4 @@
 *.onnx
 models/
 sherpa-onnx.aar
+.kotlin/

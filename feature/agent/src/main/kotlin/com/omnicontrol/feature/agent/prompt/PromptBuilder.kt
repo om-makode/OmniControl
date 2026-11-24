@@ -51,7 +51,7 @@ Rules:
         }
 
         sb.appendLine("<|observation|>")
-        sb.appendLine(observation.toLlmPromptText(maxElements = 35))
+        sb.appendLine(observation.toLlmPromptText(maxElements = 60))
         sb.appendLine("<|end|>")
 
         sb.appendLine("<|user|>")

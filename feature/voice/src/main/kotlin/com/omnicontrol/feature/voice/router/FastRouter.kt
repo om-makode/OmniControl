@@ -77,7 +77,7 @@ object FastRouter {
         val openAppMatch = OPEN_APP_REGEX.find(trimmed)
         if (openAppMatch != null) {
             val appName = openAppMatch.groupValues[1].trim()
-            if (appName.isNotEmpty()) {
+            if (appName.isNotEmpty() && !isContentItemQuery(appName)) {
                 return FastRouteResult.Action(
                     AgentAction(type = "open_app", app = appName),
                     "Opening $appName"
@@ -117,5 +117,24 @@ object FastRouter {
         }
 
         return FastRouteResult.PassToLlm(trimmed)
+    }
+
+    private fun isContentItemQuery(query: String): Boolean {
+        val lower = query.lowercase().trim()
+        val contentPrefixes = listOf(
+            "the video", "video", "the post", "post", "the link", "link",
+            "the message", "message", "the chat", "chat", "the photo", "photo",
+            "the image", "image", "the first", "first", "the second", "second",
+            "the third", "third", "the last", "last", "the one", "the result",
+            "the tab", "the button", "button", "the file", "file", "the order",
+            "the email", "email", "the song", "song", "the channel", "channel",
+            "the story", "story", "the reel", "reel", "the shorts", "shorts",
+            "the tweet", "tweet", "the article", "article", "the item", "item"
+        )
+        if (contentPrefixes.any { lower.startsWith(it) }) {
+            return true
+        }
+        val contentClauses = listOf(" of ", " in ", " with ", " having ", " about ", " by ", " from ", " named ", " called ", " titled ")
+        return contentClauses.any { lower.contains(it) }
     }
 }

@@ -108,5 +108,17 @@ class FastRouterTest {
         val complex2 = FastRouter.route("send a message to Mom saying I will be home by 7pm")
         assertTrue(complex2 is FastRouteResult.PassToLlm)
         assertEquals("send a message to Mom saying I will be home by 7pm", (complex2 as FastRouteResult.PassToLlm).utterance)
+
+        val content1 = FastRouter.route("open the video of Technical suneja")
+        assertTrue(content1 is FastRouteResult.PassToLlm)
+        assertEquals("open the video of Technical suneja", (content1 as FastRouteResult.PassToLlm).utterance)
+
+        val content2 = FastRouter.route("open the video having 100 words")
+        assertTrue(content2 is FastRouteResult.PassToLlm)
+        assertEquals("open the video having 100 words", (content2 as FastRouteResult.PassToLlm).utterance)
+
+        val content3 = FastRouter.route("open the first video")
+        assertTrue(content3 is FastRouteResult.PassToLlm)
+        assertEquals("open the first video", (content3 as FastRouteResult.PassToLlm).utterance)
     }
 }
