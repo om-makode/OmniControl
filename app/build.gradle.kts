@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":feature:accessibility"))
     implementation(project(":feature:voice"))
     implementation(project(":feature:permissions"))
+    implementation(project(":feature:overlay"))
     implementation(project(":native:llama"))
 
     implementation(libs.hilt.android)

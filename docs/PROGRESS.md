@@ -27,14 +27,14 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 1.9 Phase 1 report — note: written to docs/phases/PHASE_1_REPORT.md (2026-11-24)
 
 ## Phase 2 — Floating Overlay
-- [ ] 2.1 AssistantStateStore (state machine)
-- [ ] 2.2 AssistantService (foreground, specialUse)
-- [ ] 2.3 Overlay lifecycle owner + window manager helper
-- [ ] 2.4 Bubble (drag, snap, insets)
-- [ ] 2.5 Panel (expand/minimize, conversation list)
-- [ ] 2.6 Status pill + target highlight layer
-- [ ] 2.7 Notification with Stop
-- [ ] 2.8 Phase 2 report
+- [x] 2.1 AssistantStateStore (state machine) — note: unidirectional state machine with StateFlow & UiState (2026-11-24)
+- [x] 2.2 AssistantService (foreground, specialUse) — note: LifecycleService with ongoing notification & stop action (2026-11-24)
+- [x] 2.3 Overlay lifecycle owner + window manager helper — note: ComposeView lifecycle, saved state & view tree owners (2026-11-24)
+- [x] 2.4 Bubble (drag, snap, insets) — note: 56dp circle, touch slop, animated edge snap & insets handling (2026-11-24)
+- [x] 2.5 Panel (expand/minimize, conversation list) — note: 92% width card, dynamic keyboard focus management (2026-11-24)
+- [x] 2.6 Status pill + target highlight layer — note: top pill + full-screen canvas target pulse & debug boxes (2026-11-24)
+- [x] 2.7 Notification with Stop — note: persistent notification with Stop, Panel and Quit pending intents (2026-11-24)
+- [x] 2.8 Phase 2 report — note: written to docs/phases/PHASE_2_REPORT.md (2026-11-24)
 
 ## Phase 3 — Accessibility & Actions
 - [ ] 3.1 Accessibility service (final config)

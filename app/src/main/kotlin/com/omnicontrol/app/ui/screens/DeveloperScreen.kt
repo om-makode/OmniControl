@@ -5,6 +5,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +35,12 @@ import com.omnicontrol.app.ui.theme.DarkSurfaceVariant
 import com.omnicontrol.app.ui.theme.TextMuted
 import com.omnicontrol.app.ui.theme.TextSecondary
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
+import com.omnicontrol.feature.overlay.AssistantService
+import com.omnicontrol.feature.overlay.state.AssistantEvent
+import com.omnicontrol.core.model.ChatItem
+import com.omnicontrol.core.model.ChatRole
+import com.omnicontrol.core.model.RectBounds
+import com.omnicontrol.core.model.ScreenElement
 import com.omnicontrol.feature.voice.AsrSpike
 import com.omnicontrol.native_llama.LlamaNative
 import kotlinx.coroutines.delay
@@ -228,6 +235,140 @@ fun DeveloperScreen() {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Stop Spike Overlay Bubble")
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Phase 2 Overlay Simulator
+        Text("Phase 2 — Assistant Overlay Simulator", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    AssistantService.start(context)
+                    statusText = "AssistantService launched"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Launch Overlay")
+            }
+            Button(
+                onClick = {
+                    AssistantService.quit(context)
+                    statusText = "AssistantService quit"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Quit Overlay")
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    AssistantService.toggle(context)
+                    statusText = "Toggled overlay panel"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Toggle Panel")
+            }
+            Button(
+                onClick = {
+                    AssistantService.stop(context)
+                    statusText = "Stopped assistant session"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Stop Session")
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = {
+                scope.launch {
+                    val store = AssistantService.stateStore
+                    statusText = "Cycle: Listening"
+                    store.dispatch(AssistantEvent.StartSession)
+                    store.dispatch(AssistantEvent.UpdateTranscript("search for cat videos"))
+                    delay(1500)
+
+                    statusText = "Cycle: Processing"
+                    store.dispatch(
+                        AssistantEvent.AppendMessage(
+                            ChatItem(id = "sim-1", role = ChatRole.USER, content = "search for cat videos")
+                        )
+                    )
+                    store.dispatch(AssistantEvent.SetProcessing)
+                    delay(1500)
+
+                    statusText = "Cycle: Observing"
+                    store.dispatch(AssistantEvent.SetObserving)
+                    delay(1500)
+
+                    statusText = "Cycle: Executing"
+                    store.dispatch(AssistantEvent.SetExecuting("Tapping search bar", 1, 3))
+                    delay(2000)
+
+                    statusText = "Cycle: Confirming"
+                    store.dispatch(AssistantEvent.SetConfirming("Play first video with sound?"))
+                    delay(2500)
+
+                    statusText = "Cycle: Done / Waiting"
+                    store.dispatch(
+                        AssistantEvent.AppendMessage(
+                            ChatItem(id = "sim-2", role = ChatRole.ASSISTANT, content = "Playing cat video.")
+                        )
+                    )
+                    store.dispatch(AssistantEvent.SetWaiting)
+                    statusText = "Simulation cycle finished"
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Simulate Complete State Cycle")
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    val store = AssistantService.stateStore
+                    store.dispatch(AssistantEvent.SetTargetHighlight(RectBounds(200, 400, 600, 520)))
+                    store.dispatch(
+                        AssistantEvent.SetDebugElements(
+                            listOf(
+                                ScreenElement(id = 1, bounds = RectBounds(50, 100, 300, 180), text = "Search", isClickable = true),
+                                ScreenElement(id = 2, bounds = RectBounds(200, 400, 600, 520), text = "Result 1", isClickable = true),
+                                ScreenElement(id = 3, bounds = RectBounds(50, 600, 400, 700), text = "Channel", isClickable = true)
+                            )
+                        )
+                    )
+                    statusText = "Highlighted target and 3 debug boxes"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Show Highlights")
+            }
+            Button(
+                onClick = {
+                    val store = AssistantService.stateStore
+                    store.dispatch(AssistantEvent.SetTargetHighlight(null))
+                    store.dispatch(AssistantEvent.SetDebugElements(emptyList()))
+                    statusText = "Cleared highlights"
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Clear Highlights")
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

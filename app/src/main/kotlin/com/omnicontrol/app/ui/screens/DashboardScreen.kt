@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.omnicontrol.app.spike.SpikeOverlayService
 import com.omnicontrol.app.ui.theme.AccentError
 import com.omnicontrol.app.ui.theme.AccentPrimary
 import com.omnicontrol.app.ui.theme.AccentSecondary
@@ -42,6 +41,7 @@ import com.omnicontrol.app.ui.theme.DarkSurfaceVariant
 import com.omnicontrol.app.ui.theme.TextMuted
 import com.omnicontrol.app.ui.theme.TextSecondary
 import com.omnicontrol.core.database.dao.SessionDao
+import com.omnicontrol.feature.overlay.AssistantService
 import com.omnicontrol.feature.permissions.PermissionChecker
 
 @Composable
@@ -109,13 +109,8 @@ fun DashboardScreen(
                     onNavigateToPermissions()
                     return@Button
                 }
-                val intent = Intent(context, SpikeOverlayService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-                Toast.makeText(context, "Floating Assistant Bubble Started", Toast.LENGTH_SHORT).show()
+                AssistantService.start(context)
+                Toast.makeText(context, "OmniControl Assistant Launched", Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier
                 .fillMaxWidth()
