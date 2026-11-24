@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +49,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
-fun DeveloperScreen() {
+fun DeveloperScreen(
+    onNavigateToConsole: () -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var statusText by remember { mutableStateOf("Ready") }
@@ -100,7 +103,15 @@ fun DeveloperScreen() {
         Spacer(modifier = Modifier.height(12.dp))
 
         // Spike A
-        Text("Spike A — Accessibility & Screenshot", style = MaterialTheme.typography.titleSmall)
+        Text("Spike A & Phase 3 — Accessibility & Actions", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = onNavigateToConsole,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Open Manual Action Console")
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Button(
             onClick = {

@@ -37,16 +37,16 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 2.8 Phase 2 report — note: written to docs/phases/PHASE_2_REPORT.md (2026-11-24)
 
 ## Phase 3 — Accessibility & Actions
-- [ ] 3.1 Accessibility service (final config)
-- [ ] 3.2 ScreenReader → Observation
-- [ ] 3.3 Fingerprint + element IDs
-- [ ] 3.4 Screen settle detector
-- [ ] 3.5 ActionExecutor (all actions)
-- [ ] 3.6 Verifier
-- [ ] 3.7 Overlay-safe tapping
-- [ ] 3.8 Manual Test Console + debug boxes
-- [ ] 3.9 Tree dump export + unit tests
-- [ ] 3.10 Phase 3 report
+- [x] 3.1 Accessibility service (final config) — note: full flags, window filtering, settle listening (2026-11-24)
+- [x] 3.2 ScreenReader → Observation — note: recursive tree walking, wrapper collapsing, card text merging (2026-11-24)
+- [x] 3.3 Fingerprint + element IDs — note: SHA-256 fingerprint & stable short integer IDs (2026-11-24)
+- [x] 3.4 Screen settle detector — note: 300ms debounce settle detection with timeout (2026-11-24)
+- [x] 3.5 ActionExecutor (all actions) — note: node actions + gesture fallbacks for all §10.1 actions (2026-11-24)
+- [x] 3.6 Verifier — note: ActionVerifier comparing pre/post observation fingerprints & state (2026-11-24)
+- [x] 3.7 Overlay-safe tapping — note: target highlight pulse dispatch and own-window exclusion (2026-11-24)
+- [x] 3.8 Manual Test Console + debug boxes — note: ManualConsoleScreen in app with live command bar (2026-11-24)
+- [x] 3.9 Tree dump export + unit tests — note: 3 sample JSON tree dumps + ScreenObservationTest (2026-11-24)
+- [x] 3.10 Phase 3 report — note: written to docs/phases/PHASE_3_REPORT.md (2026-11-24)
 
 ## Phase 4 — Voice Engine
 - [ ] 4.1 Model setup (ASR, VAD, KWS)

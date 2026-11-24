@@ -23,6 +23,7 @@ import com.omnicontrol.app.ui.screens.CapabilitiesScreen
 import com.omnicontrol.app.ui.screens.DashboardScreen
 import com.omnicontrol.app.ui.screens.DeveloperScreen
 import com.omnicontrol.app.ui.screens.HistoryScreen
+import com.omnicontrol.app.ui.screens.ManualConsoleScreen
 import com.omnicontrol.app.ui.screens.ModelsScreen
 import com.omnicontrol.app.ui.screens.OnboardingScreen
 import com.omnicontrol.app.ui.screens.PermissionsScreen
@@ -50,6 +51,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        com.omnicontrol.feature.accessibility.OmniAccessibilityService.highlightTargetListener = { bounds ->
+            com.omnicontrol.feature.overlay.AssistantService.stateStore.dispatch(
+                com.omnicontrol.feature.overlay.state.AssistantEvent.SetTargetHighlight(bounds)
+            )
+        }
+
         setContent {
             OmniControlTheme {
                 val lifecycleOwner = LocalLifecycleOwner.current
@@ -136,7 +144,14 @@ fun OmniNavGraph(
                 ModelsScreen()
             }
             composable(Screen.Developer.route) {
-                DeveloperScreen()
+                DeveloperScreen(
+                    onNavigateToConsole = { navController.navigate(Screen.ManualConsole.route) }
+                )
+            }
+            composable(Screen.ManualConsole.route) {
+                ManualConsoleScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
         }
     }
