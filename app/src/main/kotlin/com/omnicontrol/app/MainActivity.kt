@@ -2,7 +2,6 @@ package com.omnicontrol.app
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -36,10 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.omnicontrol.app.spike.SpikeOverlayService
 import com.omnicontrol.app.ui.theme.OmniControlTheme
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
+import com.omnicontrol.feature.voice.AsrSpike
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -62,6 +61,9 @@ fun MainSpikeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var statusText by remember { mutableStateOf("Ready") }
+    var asrPartial by remember { mutableStateOf("") }
+    var asrFinal by remember { mutableStateOf("") }
+    var vadState by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -183,6 +185,35 @@ fun MainSpikeScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Spike A: Take Screenshot in 5s")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("--- Spike B (Sherpa-ONNX ASR + VAD) ---", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("VAD Speech: ${if (vadState) "YES (Speaking)" else "NO (Silence)"}")
+        Text("Live Partial: $asrPartial")
+        Text("Final Sentence: $asrFinal")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                if (AsrSpike.isRunning) {
+                    AsrSpike.stopSpike()
+                    statusText = "ASR Spike Stopped"
+                } else {
+                    statusText = "Starting ASR + VAD Spike..."
+                    AsrSpike.startSpike(
+                        context = context,
+                        onPartial = { partial -> asrPartial = partial },
+                        onFinal = { finalTxt -> asrFinal = finalTxt },
+                        onVadStatus = { speaking -> vadState = speaking }
+                    )
+                    statusText = "ASR Spike Running. Speak into mic!"
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (AsrSpike.isRunning) "Stop ASR Spike" else "Start ASR + VAD Spike")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
