@@ -11,6 +11,9 @@ sealed interface FastRouteResult {
 
 object FastRouter {
 
+    @Volatile
+    var lastScrollDirection: String = "down"
+
     private val STOP_REGEX = Regex("^(stop|cancel|wait|pause|hold on|freeze)$", RegexOption.IGNORE_CASE)
     private val DONE_REGEX = Regex("^(done|stop listening|that's all|that is all|bye|goodbye|exit)$", RegexOption.IGNORE_CASE)
     private val BACK_REGEX = Regex("^(go back|back|return|previous page)$", RegexOption.IGNORE_CASE)
@@ -24,6 +27,8 @@ object FastRouter {
     private val SCROLL_UP_REGEX = Regex("^(?:scroll up|swipe up|page up)$", RegexOption.IGNORE_CASE)
     private val SCROLL_LEFT_REGEX = Regex("^(?:scroll left|swipe left)$", RegexOption.IGNORE_CASE)
     private val SCROLL_RIGHT_REGEX = Regex("^(?:scroll right|swipe right)$", RegexOption.IGNORE_CASE)
+    private val SCROLL_MORE_REGEX = Regex("^(?:more|a bit more|little more|scroll more|further|again|once more|keep going|keep scrolling|scroll down more|scroll up more)$", RegexOption.IGNORE_CASE)
+    private val SCROLL_PLAIN_REGEX = Regex("^(?:scroll|swipe)$", RegexOption.IGNORE_CASE)
 
     fun route(utterance: String): FastRouteResult {
         val trimmed = utterance.trim().replace(Regex("[.,!?;:]+$"), "")
@@ -81,19 +86,34 @@ object FastRouter {
         }
 
         if (SCROLL_DOWN_REGEX.matches(trimmed)) {
+            lastScrollDirection = "down"
             return FastRouteResult.Action(AgentAction(type = "scroll", direction = "down"), "Scrolling down")
         }
 
         if (SCROLL_UP_REGEX.matches(trimmed)) {
+            lastScrollDirection = "up"
             return FastRouteResult.Action(AgentAction(type = "scroll", direction = "up"), "Scrolling up")
         }
 
         if (SCROLL_LEFT_REGEX.matches(trimmed)) {
+            lastScrollDirection = "left"
             return FastRouteResult.Action(AgentAction(type = "scroll", direction = "left"), "Scrolling left")
         }
 
         if (SCROLL_RIGHT_REGEX.matches(trimmed)) {
+            lastScrollDirection = "right"
             return FastRouteResult.Action(AgentAction(type = "scroll", direction = "right"), "Scrolling right")
+        }
+
+        if (SCROLL_MORE_REGEX.matches(trimmed) || SCROLL_PLAIN_REGEX.matches(trimmed)) {
+            val dir = lastScrollDirection
+            val speech = when (dir) {
+                "up" -> "Scrolling up more"
+                "left" -> "Scrolling left more"
+                "right" -> "Scrolling right more"
+                else -> "Scrolling down more"
+            }
+            return FastRouteResult.Action(AgentAction(type = "scroll", direction = dir), speech)
         }
 
         return FastRouteResult.PassToLlm(trimmed)

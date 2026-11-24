@@ -73,10 +73,22 @@ class FastRouterTest {
         assertEquals("scroll", (scrollDown as FastRouteResult.Action).action.type)
         assertEquals("down", scrollDown.action.direction)
 
+        // Follow up command "more" after scroll down
+        val moreDown = FastRouter.route("more")
+        assertTrue(moreDown is FastRouteResult.Action)
+        assertEquals("scroll", (moreDown as FastRouteResult.Action).action.type)
+        assertEquals("down", moreDown.action.direction)
+
         val scrollUp = FastRouter.route("scroll up")
         assertTrue(scrollUp is FastRouteResult.Action)
         assertEquals("scroll", (scrollUp as FastRouteResult.Action).action.type)
         assertEquals("up", scrollUp.action.direction)
+
+        // Follow up command "a bit more" after scroll up
+        val moreUp = FastRouter.route("a bit more")
+        assertTrue(moreUp is FastRouteResult.Action)
+        assertEquals("scroll", (moreUp as FastRouteResult.Action).action.type)
+        assertEquals("up", moreUp.action.direction)
     }
 
     @Test

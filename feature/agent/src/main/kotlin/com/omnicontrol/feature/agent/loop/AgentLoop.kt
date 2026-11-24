@@ -19,6 +19,8 @@ import com.omnicontrol.feature.vision.resolver.VisualResolver
 import com.omnicontrol.feature.vision.resolver.VisualResult
 import com.omnicontrol.feature.vision.screenshot.ScreenshotManager
 import com.omnicontrol.feature.vision.som.SetOfMarksRenderer
+import com.omnicontrol.feature.voice.router.FastRouteResult
+import com.omnicontrol.feature.voice.router.FastRouter
 import com.omnicontrol.feature.voice.tts.TtsEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,35 @@ class AgentLoop(
         OmniLog.i(TAG, "Starting ReAct agent loop for goal: '$goal'")
         conversationManager.startNewSession(goal)
         conversationManager.recordTurn("user", goal)
+
+        val fastResult = FastRouter.route(goal)
+        if (fastResult is FastRouteResult.Action) {
+            val action = fastResult.action
+            val actionType = action.type.lowercase().trim()
+            fastResult.spokenReply?.let { tts?.speak(it) }
+            listener?.onStateChanged(AssistantState.Executing(fastResult.spokenReply ?: "Executing $actionType", 1, 1))
+            val actionResult = OmniAccessibilityService.executeAction(action)
+            if (actionResult != null) {
+                listener?.onMessage(
+                    ChatItem(
+                        id = UUID.randomUUID().toString(),
+                        role = ChatRole.ACTION,
+                        content = actionResult.reason,
+                        actionDetail = ActionCardDetail(
+                            actionType = actionType,
+                            targetDescription = action.direction ?: action.app ?: action.url ?: "",
+                            isSuccess = actionResult.success,
+                            durationMs = actionResult.durationMs
+                        )
+                    )
+                )
+                conversationManager.recordTurn("assistant", "$actionType -> ${actionResult.reason}")
+            }
+            listener?.onStateChanged(AssistantState.Waiting)
+            conversationManager.endSession("COMPLETED")
+            isRunning = false
+            return
+        }
 
         val maxSteps = 10
         var currentStep = 1

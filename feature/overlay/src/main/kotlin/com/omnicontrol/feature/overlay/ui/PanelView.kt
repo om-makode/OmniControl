@@ -71,8 +71,8 @@ fun PanelContent(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, Color(0xFF334155), RoundedCornerShape(24.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.95f))
+            .border(1.dp, Color(0xFF334155).copy(alpha = 0.45f), RoundedCornerShape(24.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.45f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header
@@ -120,7 +120,7 @@ fun PanelContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .background(Color(0xFF020617).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .background(Color(0xFF020617).copy(alpha = 0.30f), RoundedCornerShape(12.dp))
                     .padding(8.dp)
             ) {
                 if (uiState.messages.isEmpty() && uiState.partialTranscript.isEmpty()) {
@@ -286,7 +286,7 @@ fun ChatBubble(item: ChatItem) {
         val detail = item.actionDetail
         if (isAction && detail != null) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.60f)),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
@@ -317,7 +317,7 @@ fun ChatBubble(item: ChatItem) {
                             bottomEnd = if (isUser) 4.dp else 14.dp
                         )
                     )
-                    .background(if (isUser) Color(0xFF7C5CFF) else Color(0xFF1E293B))
+                    .background(if (isUser) Color(0xFF7C5CFF).copy(alpha = 0.70f) else Color(0xFF1E293B).copy(alpha = 0.60f))
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
