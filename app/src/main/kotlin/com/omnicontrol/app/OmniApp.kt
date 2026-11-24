@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import com.omnicontrol.core.common.CrashHandler
 import com.omnicontrol.core.common.OmniLog
 import dagger.hilt.android.HiltAndroidApp
 
@@ -13,7 +14,8 @@ class OmniApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        OmniLog.i("App", "OmniApp initialized with Hilt")
+        CrashHandler.init(this)
+        OmniLog.i("App", "OmniApp initialized with Hilt and CrashHandler")
         createNotificationChannels()
     }
 

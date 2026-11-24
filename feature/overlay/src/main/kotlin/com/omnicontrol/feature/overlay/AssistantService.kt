@@ -6,8 +6,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Insets
 import android.os.Build
@@ -73,6 +75,17 @@ class AssistantService : LifecycleService() {
     private var initialTouchY = 0f
     private var touchSlop = 0
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                OmniLog.i(TAG, "Screen off detected, stopping active session")
+                agentLoop?.cancel()
+                voiceEngine?.endSession()
+                stateStore.dispatch(AssistantEvent.StopSession)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         OmniLog.i(TAG, "AssistantService onCreate")
@@ -91,6 +104,11 @@ class AssistantService : LifecycleService() {
 
         initVoiceEngine()
         observeState()
+        try {
+            registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        } catch (e: Exception) {
+            OmniLog.w(TAG, "Could not register screenReceiver", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -130,6 +148,11 @@ class AssistantService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         OmniLog.i(TAG, "AssistantService onDestroy")
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (e: Exception) {
+            // Ignore unregister errors if not registered
+        }
         agentLoop?.cancel()
         agentLoop = null
         voiceEngine?.shutdown()

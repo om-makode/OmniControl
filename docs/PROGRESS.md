@@ -93,8 +93,8 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 7.9 Phase 7 report — note: written to docs/phases/PHASE_7_REPORT.md (2026-11-24)
 
 ## Phase 8 — Hardening & Polish
-- [ ] 8.1 Interruption tests
-- [ ] 8.2 Performance + battery
-- [ ] 8.3 Privacy audit
-- [ ] 8.4 Final docs
-- [ ] 8.5 Phase 8 report
+- [x] 8.1 Interruption tests — note: screen-off receiver, uncaught CrashHandler & edge case matrix in docs/TESTING.md (2026-11-24)
+- [x] 8.2 Performance + battery — note: zero idle polling, model lifecycle & resource budgets in docs/PERFORMANCE.md (2026-11-24)
+- [x] 8.3 Privacy audit — note: allowBackup=false, 100% offline-ready, password masking & local storage (2026-11-24)
+- [x] 8.4 Final docs — note: README.md, SETUP.md, TESTING.md, PERFORMANCE.md, HOME_BRAIN.md (2026-11-24)
+- [x] 8.5 Phase 8 report — note: written to docs/phases/PHASE_8_REPORT.md (2026-11-24)
