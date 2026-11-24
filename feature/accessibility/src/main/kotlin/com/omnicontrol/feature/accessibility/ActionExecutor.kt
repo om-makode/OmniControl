@@ -61,6 +61,10 @@ class ActionExecutor(
                 }
             }
 
+            if (action.type.lowercase().trim() in listOf("open_app", "open_url")) {
+                delay(700)
+            }
+
             // Wait for screen to settle
             settleDetector.waitForSettle()
 
@@ -100,30 +104,103 @@ class ActionExecutor(
             return false
         }
         val intent = packageManager.getLaunchIntentForPackage(pkg)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        } ?: return false
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        } ?: Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage(pkg)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        }
 
-        service.startActivity(intent)
-        return true
+        try {
+            service.startActivity(intent)
+            return true
+        } catch (e: Exception) {
+            OmniLog.e(TAG, "Failed to launch intent for $pkg", e)
+            return false
+        }
     }
 
     private fun findPackageForAppName(appName: String): String? {
-        val installed = packageManager.getInstalledApplications(0)
-        // Exact match
-        for (info in installed) {
-            val label = packageManager.getApplicationLabel(info).toString()
-            if (label.equals(appName, ignoreCase = true)) {
-                return info.packageName
-            }
+        val clean = appName.trim().lowercase()
+
+        // 1. Direct popular package mapping fallback
+        val commonMap = mapOf(
+            "youtube" to "com.google.android.youtube",
+            "chrome" to "com.android.chrome",
+            "whatsapp" to "com.whatsapp",
+            "maps" to "com.google.android.apps.maps",
+            "google maps" to "com.google.android.apps.maps",
+            "gmail" to "com.google.android.gm",
+            "settings" to "com.android.settings",
+            "play store" to "com.android.vending",
+            "playstore" to "com.android.vending",
+            "photos" to "com.google.android.apps.photos",
+            "camera" to "com.android.camera",
+            "clock" to "com.google.android.deskclock",
+            "calculator" to "com.google.android.calculator",
+            "files" to "com.google.android.documentsui",
+            "file manager" to "com.google.android.documentsui",
+            "messages" to "com.google.android.apps.messaging",
+            "spotify" to "com.spotify.music",
+            "telegram" to "org.telegram.messenger",
+            "instagram" to "com.instagram.android"
+        )
+        val mapped = commonMap[clean]
+        if (mapped != null && isPackageInstalled(mapped)) {
+            return mapped
         }
-        // Substring / prefix match
-        for (info in installed) {
-            val label = packageManager.getApplicationLabel(info).toString()
-            if (label.contains(appName, ignoreCase = true) || info.packageName.contains(appName, ignoreCase = true)) {
-                return info.packageName
+
+        // 2. Query launcher intent activities (accurate for launchable apps)
+        try {
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
             }
+            val resolveInfos = packageManager.queryIntentActivities(mainIntent, 0)
+            for (info in resolveInfos) {
+                val label = info.loadLabel(packageManager).toString()
+                if (label.equals(clean, ignoreCase = true)) {
+                    return info.activityInfo.packageName
+                }
+            }
+            for (info in resolveInfos) {
+                val label = info.loadLabel(packageManager).toString()
+                if (label.contains(clean, ignoreCase = true) || info.activityInfo.packageName.contains(clean, ignoreCase = true)) {
+                    return info.activityInfo.packageName
+                }
+            }
+        } catch (e: Exception) {
+            OmniLog.w(TAG, "Error querying launcher intent activities", e)
         }
-        return null
+
+        // 3. Fallback to installed applications
+        try {
+            val installed = packageManager.getInstalledApplications(0)
+            for (info in installed) {
+                val label = packageManager.getApplicationLabel(info).toString()
+                if (label.equals(clean, ignoreCase = true)) {
+                    return info.packageName
+                }
+            }
+            for (info in installed) {
+                val label = packageManager.getApplicationLabel(info).toString()
+                if (label.contains(clean, ignoreCase = true) || info.packageName.contains(clean, ignoreCase = true)) {
+                    return info.packageName
+                }
+            }
+        } catch (e: Exception) {
+            OmniLog.w(TAG, "Error listing installed applications", e)
+        }
+
+        return mapped
+    }
+
+    private fun isPackageInstalled(pkg: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(pkg, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun executeOpenUrl(url: String): Boolean {

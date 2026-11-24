@@ -36,6 +36,7 @@ class ScreenReader(private val service: AccessibilityService) {
         // 1. Inspect window list for keyboard and target app windows
         val interactiveRoots = mutableListOf<Pair<AccessibilityNodeInfo, Boolean>>()
 
+        var appPackage: String? = null
         if (windows.isNotEmpty()) {
             for (window in windows) {
                 if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
@@ -52,7 +53,9 @@ class ScreenReader(private val service: AccessibilityService) {
                     continue
                 }
 
-                if (currentPackage.isEmpty() && pkg.isNotEmpty()) {
+                if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && pkg.isNotEmpty() && pkg != "com.android.systemui") {
+                    appPackage = pkg
+                } else if (currentPackage.isEmpty() && pkg.isNotEmpty()) {
                     currentPackage = pkg
                 }
 
@@ -60,6 +63,9 @@ class ScreenReader(private val service: AccessibilityService) {
 
                 interactiveRoots.add(root to isDialog)
             }
+        }
+        if (!appPackage.isNullOrEmpty()) {
+            currentPackage = appPackage
         }
 
         // Fallback to rootInActiveWindow if window list didn't yield any roots
