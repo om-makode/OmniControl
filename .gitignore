@@ -1,16 +1,102 @@
-*.iml
-.gradle
-**/build/
-/local.properties
-/.idea/
-.DS_Store
-/captures
-.externalNativeBuild
-.cxx
+# ==============================================================================
+# OmniControl - Comprehensive .gitignore for Android / Kotlin / C++ / Gradle
+# ==============================================================================
+
+# --- Built application files ---
 *.apk
+*.ap_
 *.aab
+*.dex
+
+# --- Gradle & Build Cache ---
+.gradle/
+.kotlin/
+build/
+**/build/
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- Local configuration & environment ---
+local.properties
+.env
+.env.*
+*.local
+
+# --- Android Studio / IntelliJ IDEA ---
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.shelf/
+
+# --- Visual Studio Code ---
+.vscode/
+
+# --- Native / C++ / CMake build outputs ---
+.externalNativeBuild/
+.cxx/
+**/CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.ninja
+*.ninja_deps
+*.ninja_log
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# --- Keystores & Signing Keys ---
+*.jks
+*.keystore
+*.key
+*.p12
+*.pem
+*.pk8
+google-services.json
+
+# --- AI Models, Quantized Weights & Large Binary Blobs (>100MB) ---
+# Download models via in-app Model Manager / Setup scripts
 *.gguf
 *.onnx
+*.tflite
+*.bin
+*.pt
+*.pth
+*.safetensors
 models/
+**/models/llm/
+**/models/asr/
+**/models/vad/
 sherpa-onnx.aar
-.kotlin/
+
+# --- OS-generated files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# --- Logs, Dumps & Temp files ---
+*.log
+hs_err_pid*
+replay_pid*
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# --- Test screenshots & bug captures ---
+Bugs images/
+bugs images/
+**/Bugs images/
+**/screenshots/*.png
+captures/
