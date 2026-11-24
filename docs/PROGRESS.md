@@ -49,15 +49,15 @@ Format: `- [x] 0.3 Create modules — note: added core/model, core/common (2026-
 - [x] 3.10 Phase 3 report — note: written to docs/phases/PHASE_3_REPORT.md (2026-11-24)
 
 ## Phase 4 — Voice Engine
-- [ ] 4.1 Model setup (ASR, VAD, KWS)
-- [ ] 4.2 AudioCapture
-- [ ] 4.3 VAD + streaming ASR pipeline
-- [ ] 4.4 Keyword spotter (stop/cancel/done)
-- [ ] 4.5 VoiceSession loop + mic FGS
-- [ ] 4.6 Hotword biasing
-- [ ] 4.7 TTS
-- [ ] 4.8 Temporary FastRouter hookup
-- [ ] 4.9 Phase 4 report
+- [x] 4.1 Model setup (ASR, VAD, KWS) — note: Sherpa-ONNX 2.0.3 + offline SpeechRecognizer fallback (2026-11-24)
+- [x] 4.2 AudioCapture — note: continuous AudioRecord at 16 kHz mono VOICE_COMMUNICATION with RMS (2026-11-24)
+- [x] 4.3 VAD + streaming ASR pipeline — note: Silero ONNX VAD + Zipformer transducer stream (2026-11-24)
+- [x] 4.4 Keyword spotter (stop/cancel/done) — note: sub-500ms barge-in stop/cancel interruption (2026-11-24)
+- [x] 4.5 VoiceSession loop + mic FGS — note: continuous loop wired to AssistantService & stateStore (2026-11-24)
+- [x] 4.6 Hotword biasing — note: contextual hotwords updated from on-screen UI labels (2026-11-24)
+- [x] 4.7 TTS — note: offline TextToSpeech engine with half-duplex barge-in protection (2026-11-24)
+- [x] 4.8 Temporary FastRouter hookup — note: <300ms regex router for navigation & app actions (2026-11-24)
+- [x] 4.9 Phase 4 report — note: written to docs/phases/PHASE_4_REPORT.md (2026-11-24)
 
 ## Phase 5 — AI Agent
 - [ ] 5.1 LlmEngine interface + llama.cpp backend

@@ -32,6 +32,7 @@ import com.omnicontrol.core.model.AssistantState
 import com.omnicontrol.core.model.ChatItem
 import com.omnicontrol.core.model.ChatRole
 import com.omnicontrol.core.model.UiState
+import com.omnicontrol.feature.accessibility.OmniAccessibilityService
 import com.omnicontrol.feature.overlay.state.AssistantEvent
 import com.omnicontrol.feature.overlay.state.AssistantStateStore
 import com.omnicontrol.feature.overlay.ui.BubbleContent
@@ -39,6 +40,7 @@ import com.omnicontrol.feature.overlay.ui.HighlightOverlayContent
 import com.omnicontrol.feature.overlay.ui.PanelContent
 import com.omnicontrol.feature.overlay.ui.StatusPillContent
 import com.omnicontrol.feature.overlay.window.OverlayWindowManager
+import com.omnicontrol.feature.voice.VoiceEngine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -54,6 +56,7 @@ class AssistantService : LifecycleService() {
     private var panelView: ComposeView? = null
     private var statusPillView: ComposeView? = null
     private var highlightView: ComposeView? = null
+    private var voiceEngine: VoiceEngine? = null
 
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var isDragging = false
@@ -79,6 +82,7 @@ class AssistantService : LifecycleService() {
         initStatusPillWindow()
         initHighlightWindow()
 
+        initVoiceEngine()
         observeState()
     }
 
@@ -99,6 +103,7 @@ class AssistantService : LifecycleService() {
                 }
             }
             ACTION_STOP -> {
+                voiceEngine?.endSession()
                 stateStore.dispatch(AssistantEvent.StopSession)
             }
             ACTION_TOGGLE -> {
@@ -117,8 +122,67 @@ class AssistantService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         OmniLog.i(TAG, "AssistantService onDestroy")
+        voiceEngine?.shutdown()
+        voiceEngine = null
         overlayWindowManager.removeAll()
         activeServiceInstance = null
+    }
+
+    private fun initVoiceEngine() {
+        val ve = VoiceEngine(this)
+        ve.initialize()
+        ve.onAudioLevel = { level ->
+            stateStore.dispatch(AssistantEvent.UpdateAudioLevel(level))
+        }
+        ve.onPartialTranscript = { partial ->
+            stateStore.dispatch(AssistantEvent.UpdateTranscript(partial))
+            stateStore.dispatch(AssistantEvent.SetListening)
+        }
+        ve.onFinalUtterance = { text ->
+            stateStore.dispatch(
+                AssistantEvent.AppendMessage(
+                    ChatItem(
+                        id = UUID.randomUUID().toString(),
+                        role = ChatRole.USER,
+                        content = text
+                    )
+                )
+            )
+        }
+        ve.onFastRouteAction = { action, _ ->
+            stateStore.dispatch(AssistantEvent.SetExecuting(action.type, 1, 1))
+            lifecycleScope.launch {
+                val res = OmniAccessibilityService.executeAction(action)
+                if (res != null) {
+                    stateStore.dispatch(
+                        AssistantEvent.AppendMessage(
+                            ChatItem(
+                                id = UUID.randomUUID().toString(),
+                                role = ChatRole.ACTION,
+                                content = res.reason,
+                                actionDetail = com.omnicontrol.core.model.ActionCardDetail(
+                                    actionType = action.type,
+                                    targetDescription = action.app ?: action.url ?: action.direction ?: "#${action.target}",
+                                    isSuccess = res.success,
+                                    durationMs = res.durationMs
+                                )
+                            )
+                        )
+                    )
+                }
+                stateStore.dispatch(AssistantEvent.SetWaiting)
+            }
+        }
+        ve.onLlmPassRequired = {
+            stateStore.dispatch(AssistantEvent.SetProcessing)
+        }
+        ve.onTaskInterrupted = {
+            stateStore.dispatch(AssistantEvent.SetWaiting)
+        }
+        ve.onSessionEnd = {
+            stateStore.dispatch(AssistantEvent.StopSession)
+        }
+        voiceEngine = ve
     }
 
     private fun createNotificationChannel() {
@@ -240,6 +304,9 @@ class AssistantService : LifecycleService() {
                     audioLevel = state.audioLevel,
                     onClick = {
                         stateStore.dispatch(AssistantEvent.BubbleTap)
+                        if (voiceEngine?.isRunning == false) {
+                            voiceEngine?.startSession(lifecycleScope)
+                        }
                     }
                 )
             }
@@ -272,6 +339,9 @@ class AssistantService : LifecycleService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (!isDragging) {
                         stateStore.dispatch(AssistantEvent.BubbleTap)
+                        if (voiceEngine?.isRunning == false) {
+                            voiceEngine?.startSession(lifecycleScope)
+                        }
                     } else {
                         snapBubbleToEdge(p)
                     }
@@ -340,6 +410,7 @@ class AssistantService : LifecycleService() {
                         stateStore.dispatch(AssistantEvent.MinimizePanel)
                     },
                     onStopSession = {
+                        voiceEngine?.endSession()
                         stateStore.dispatch(AssistantEvent.StopSession)
                     },
                     onConfirm = { accepted ->
