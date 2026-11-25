@@ -90,6 +90,15 @@ class QuickCommandsTest {
         assertEquals("github.com", s.url)
     }
 
+    @Test fun mediaControl() {
+        val pause = QuickCommands.parseClause("pause video") as QuickStep.MediaControl
+        assertEquals(false, pause.play)
+        val resume = QuickCommands.parseClause("resume video") as QuickStep.MediaControl
+        assertEquals(true, resume.play)
+        val resumeShort = QuickCommands.parseClause("resume") as QuickStep.MediaControl
+        assertEquals(true, resumeShort.play)
+    }
+
     @Test fun stopDoneYesNo() {
         assertTrue(QuickCommands.isStop("Stop"))
         assertTrue(QuickCommands.isEnd("That's all."))

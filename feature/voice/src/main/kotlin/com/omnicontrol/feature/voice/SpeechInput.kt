@@ -2,12 +2,18 @@ package com.omnicontrol.feature.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.KeyEvent
 import com.omnicontrol.core.common.OmniLog
 
 /**
@@ -34,8 +40,13 @@ class SpeechInput(private val context: Context) {
     var listener: Listener? = null
     var preferOffline = true
     var languageTag: String = ""
+    var foregroundPackage: (() -> String)? = null
+    var isMediaActionExpected: (() -> Boolean)? = null
+    var onMediaPlaybackResumed: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var focusRequest: AudioFocusRequest? = null
     private var recognizer: SpeechRecognizer? = null
     private var usingOnDevice = false
     private var onDeviceBroken = false
@@ -64,6 +75,10 @@ class SpeechInput(private val context: Context) {
         generation++
         main.removeCallbacksAndMessages(null)
         destroyRecognizer()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            focusRequest = null
+        }
     }
 
     /** Stop hearing (so our own voice is not transcribed) but keep the session alive. */
@@ -86,6 +101,53 @@ class SpeechInput(private val context: Context) {
 
     // ------------------------------------------------------------------------------------
 
+    private fun requestTransientFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val am = audioManager ?: return
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(attrs)
+                .setAcceptsDelayedFocusGain(true)
+                .setWillPauseWhenDucked(false)
+                .build()
+            focusRequest = req
+            am.requestAudioFocus(req)
+        }
+    }
+
+    private fun isMediaActive(): Boolean {
+        if (isMediaActionExpected?.invoke() == true) return true
+        if (audioManager?.isMusicActive == true) return true
+        val pkg = foregroundPackage?.invoke().orEmpty().lowercase()
+        return pkg.isNotEmpty() && (
+            pkg.contains("youtube") || pkg.contains("video") || pkg.contains("music") ||
+            pkg.contains("spotify") || pkg.contains("vlc") || pkg.contains("netflix") ||
+            pkg.contains("player") || pkg.contains("hotstar") || pkg.contains("reels")
+        )
+    }
+
+    private fun dispatchMediaPlay() {
+        try {
+            val am = audioManager ?: return
+            val now = SystemClock.uptimeMillis()
+            val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY, 0)
+            val up = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY, 0)
+            am.dispatchMediaKeyEvent(down)
+            am.dispatchMediaKeyEvent(up)
+        } catch (e: Exception) {
+            OmniLog.w(TAG, "dispatchMediaPlay failed", e)
+        }
+    }
+
+    private fun ensureMediaPlayback(wasActive: Boolean) {
+        if (!wasActive && !isMediaActive()) return
+        main.postDelayed({ if (active && !paused) dispatchMediaPlay() }, 80)
+        main.postDelayed({ if (active && !paused) dispatchMediaPlay() }, 250)
+    }
+
     private fun listenSoon(delayMs: Long) {
         val gen = ++generation
         main.postDelayed({ if (gen == generation) listenNow() }, delayMs)
@@ -93,14 +155,20 @@ class SpeechInput(private val context: Context) {
 
     private fun listenNow() {
         if (!active || paused) return
+        val wasMediaActive = isMediaActive()
         val r = recognizer ?: createRecognizer() ?: run {
             listener?.onProblem("Speech recognition is not available on this phone. Install/enable the Google app.", true)
             active = false
             return
         }
         try {
+            requestTransientFocus()
             r.startListening(buildIntent())
             listening = true
+            if (wasMediaActive) {
+                ensureMediaPlayback(true)
+                onMediaPlaybackResumed?.invoke()
+            }
         } catch (e: Exception) {
             OmniLog.w(TAG, "startListening failed", e)
             destroyRecognizer()
@@ -149,7 +217,12 @@ class SpeechInput(private val context: Context) {
     }
 
     private val callbacks = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) { listener?.onReady() }
+        override fun onReadyForSpeech(params: Bundle?) {
+            if (isMediaActive()) {
+                ensureMediaPlayback(true)
+            }
+            listener?.onReady()
+        }
         override fun onBeginningOfSpeech() { listener?.onSpeechStart() }
         override fun onRmsChanged(rmsdB: Float) { listener?.onLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f)) }
         override fun onBufferReceived(buffer: ByteArray?) {}

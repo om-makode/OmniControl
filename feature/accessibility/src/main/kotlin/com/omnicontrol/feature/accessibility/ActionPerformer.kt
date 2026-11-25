@@ -8,6 +8,7 @@ import android.content.Context
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import com.omnicontrol.core.common.OmniLog
@@ -63,6 +64,8 @@ class ActionPerformer(
                 "recents" -> global(AccessibilityService.GLOBAL_ACTION_RECENTS, "Opened recent apps")
                 "notifications" -> global(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "Opened notifications")
                 "quick_settings" -> global(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS, "Opened quick settings")
+                "media_play" -> mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY, "Resumed playback")
+                "media_pause" -> mediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE, "Paused playback")
                 "wait" -> { delay((action.ms ?: 1500).coerceIn(200, 8000)); true to "Waited" }
                 else -> false to "Unknown action '${action.type}'"
             }
@@ -364,6 +367,15 @@ class ActionPerformer(
             override fun onCancelled(g: GestureDescription?) { if (cont.isActive) cont.resume(false) }
         }, null)
         if (!sent && cont.isActive) cont.resume(false)
+    }
+
+    private fun mediaKey(keyCode: Int, message: String): Pair<Boolean, String> {
+        val am = service.getSystemService(AccessibilityService.AUDIO_SERVICE) as? android.media.AudioManager
+            ?: return false to "Audio service unavailable"
+        val now = android.os.SystemClock.uptimeMillis()
+        am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0))
+        am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0))
+        return true to message
     }
 
     companion object {

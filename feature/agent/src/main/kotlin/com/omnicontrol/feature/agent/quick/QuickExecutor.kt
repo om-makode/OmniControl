@@ -37,11 +37,16 @@ class QuickExecutor(
         is QuickStep.OpenOrTap -> openOrTap(step.name)
         is QuickStep.Search -> search(step.query, step.app)
         is QuickStep.Play -> {
+            OmniAccessibilityService.notifyMediaActionExpected()
             val s = search(step.query, step.app)
             if (!s.ok) s else nth(1)
         }
-        is QuickStep.Nth -> nth(step.n)
+        is QuickStep.Nth -> {
+            OmniAccessibilityService.notifyMediaActionExpected()
+            nth(step.n)
+        }
         is QuickStep.TapLabel -> tapLabel(step.label, step.long)
+        is QuickStep.MediaControl -> fromResult(act(AgentAction(if (step.play) "media_play" else "media_pause"), null))
     }
 
     private fun fromResult(r: ActionResult) = StepOutcome(r.success, r.reason)

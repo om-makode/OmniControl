@@ -17,6 +17,7 @@ sealed interface QuickStep {
     data class Scroll(val direction: String, val times: Int, override val spoken: String) : QuickStep
     data class Swipe(val direction: String, override val spoken: String) : QuickStep
     data class Global(val type: String, override val spoken: String) : QuickStep
+    data class MediaControl(val play: Boolean, override val spoken: String) : QuickStep
 }
 
 /**
@@ -68,6 +69,8 @@ object QuickCommands {
     private val R_SCROLL_TOP = Regex("^(scroll|go) (back )?(to the )?top$")
     private val R_NEXT_SHORT = Regex("^(next|skip)( short| reel| story| video)?$")
     private val R_PREV_SHORT = Regex("^previous( short| reel| story)?$")
+    private val R_MEDIA_PLAY = Regex("^(resume|resume video|resume the video|resume playback|continue video|continue playing)$")
+    private val R_MEDIA_PAUSE = Regex("^(pause video|pause the video|pause playback|pause music|pause the music)$")
     private val R_URL = Regex("^(open|go to|visit|browse)( to)? ((https?://)?[a-z0-9.-]+\\.(com|in|org|net|io|ai|dev|co|app|me|tv)(/\\S*)?)$")
     private val R_SEARCH_IN = Regex("^(search|look up|google|find)( for)? (.+?) (on|in|using) ($SITE_APPS)$")
     private val R_SEARCH = Regex("^(search|look up|google)( for| about)? (.+)$")
@@ -110,6 +113,8 @@ object QuickCommands {
         }
         R_NEXT_SHORT.find(c)?.let { return QuickStep.Swipe("up", "Next") }
         R_PREV_SHORT.find(c)?.let { return QuickStep.Swipe("down", "Previous") }
+        R_MEDIA_PLAY.find(c)?.let { return QuickStep.MediaControl(true, "Resuming video") }
+        R_MEDIA_PAUSE.find(c)?.let { return QuickStep.MediaControl(false, "Pausing video") }
         // Use the original text for URLs and typed text (case matters).
         R_URL.find(c)?.let { m -> return QuickStep.OpenUrl(m.groupValues[3], "Opening ${m.groupValues[3]}") }
         R_SEARCH_IN.find(c)?.let { m ->
