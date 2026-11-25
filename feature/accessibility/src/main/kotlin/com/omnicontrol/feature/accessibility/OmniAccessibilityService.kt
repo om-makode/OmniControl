@@ -43,7 +43,14 @@ class OmniAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event != null && ::settle.isInitialized) settle.onEvent(event)
+        if (event != null && ::settle.isInitialized) {
+            settle.onEvent(event)
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                AccessibilityEvent.TYPE_WINDOWS_CHANGED -> screenChangeListener?.invoke()
+            }
+        }
     }
 
     /** Pressing Volume Up + Volume Down together stops whatever the assistant is doing. */
@@ -91,6 +98,8 @@ class OmniAccessibilityService : AccessibilityService() {
         var panicListener: (() -> Unit)? = null
         @Volatile
         var connectionListener: ((Boolean) -> Unit)? = null
+        @Volatile
+        var screenChangeListener: (() -> Unit)? = null
 
         private val actionLock = Mutex()
         private var lastScreenshotAt = 0L

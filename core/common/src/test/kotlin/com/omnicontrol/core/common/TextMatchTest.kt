@@ -16,5 +16,8 @@ class TextMatchTest {
         assertEquals(2, TextMatch.ordinal("the second video"))
         assertEquals(-1, TextMatch.ordinal("last one"))
         assertEquals(4, TextMatch.ordinal("number 4"))
+        assertEquals(3, TextMatch.ordinal("video 3"))
+        assertEquals(3, TextMatch.ordinal("3"))
+        assertEquals(3, TextMatch.ordinal("3rd"))
     }
 }

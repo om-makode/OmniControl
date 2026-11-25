@@ -86,11 +86,15 @@ object TextMatch {
         "last" to -1
     )
 
-    /** "the second video" -> 2, "last one" -> -1, "number 3" -> 3, else null. */
+    /** "the second video" -> 2, "3rd video" -> 3, "video 3" -> 3, "number 3" -> 3, "3" -> 3, "last one" -> -1, else null. */
     fun ordinal(text: String): Int? {
+        val norm = normalize(text)
+        Regex("(?:video|number|no|#|item|result)\\s*(\\d{1,2})").find(norm)?.let { return it.groupValues[1].toInt() }
         val t = tokens(text)
-        Regex("(?:number|no|#)\\s*(\\d{1,2})").find(normalize(text))?.let { return it.groupValues[1].toInt() }
-        for (w in t) ORDINALS[w]?.let { return it }
+        for (w in t) {
+            ORDINALS[w]?.let { return it }
+            w.toIntOrNull()?.let { return it }
+        }
         return null
     }
 }

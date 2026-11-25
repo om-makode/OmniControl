@@ -1,6 +1,7 @@
 package com.omnicontrol.feature.agent.quick
 
 import com.omnicontrol.core.common.TextMatch
+import com.omnicontrol.core.model.Role
 import com.omnicontrol.core.model.ScreenState
 import com.omnicontrol.core.model.UiElement
 
@@ -14,19 +15,43 @@ object ScreenQueries {
     fun contentItems(screen: ScreenState): List<UiElement> {
         val w = screen.screenWidth.coerceAtLeast(1)
         val h = screen.screenHeight.coerceAtLeast(1)
-        var c = screen.elements.filter { e ->
-            e.clickable && e.enabled && !e.editable && !e.scrollable &&
-                e.bounds.width >= w * 0.4f &&
-                e.bounds.height >= h * 0.045f &&
-                e.bounds.height <= h * 0.8f &&
-                e.bounds.centerY >= h * 0.1f && e.bounds.centerY <= h * 0.93f &&
+
+        // 1. Initial filter for candidate content cards/videos
+        val candidates = screen.elements.filter { e ->
+            e.enabled && !e.editable && !e.scrollable &&
+                (e.clickable || e.longClickable || e.inList || e.role == Role.LIST_ITEM) &&
+                e.bounds.width >= w * 0.25f &&
+                e.bounds.height >= h * 0.035f &&
+                e.bounds.height <= h * 0.75f &&
+                e.bounds.centerY >= h * 0.08f && e.bounds.centerY <= h * 0.94f &&
                 !isAd(e)
         }
-        if (c.any { it.inList }) c = c.filter { it.inList }
-        // Keep the outer card when a card and a child row are both clickable.
-        c = c.filter { inner -> c.none { outer -> outer !== inner && outer.bounds.contains(inner.bounds) && outer.bounds.area > inner.bounds.area } }
-        return c.sortedWith(compareBy({ it.bounds.top / 12 }, { it.bounds.left }))
-            .distinctBy { it.bounds.top / 12 * 10_000 + it.bounds.left / 12 }
+
+        // 2. Disambiguate containers vs cards:
+        // If outer contains inner and outer is not excessively tall, keep outer card.
+        val nonContainers = candidates.filter { inner ->
+            candidates.none { outer ->
+                outer !== inner &&
+                    outer.bounds.contains(inner.bounds) &&
+                    outer.bounds.height <= inner.bounds.height * 2.2f &&
+                    outer.bounds.area > inner.bounds.area
+            }
+        }
+
+        // 3. Cluster elements that belong to the same card (e.g. thumbnail and title)
+        val sorted = nonContainers.sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
+        val unique = ArrayList<UiElement>()
+        for (item in sorted) {
+            val duplicate = unique.any { existing ->
+                val dy = kotlin.math.abs(existing.bounds.centerY - item.bounds.centerY)
+                val dx = kotlin.math.abs(existing.bounds.centerX - item.bounds.centerX)
+                (dy < h * 0.05f && dx < w * 0.3f) ||
+                    (existing.bounds.contains(item.bounds) || item.bounds.contains(existing.bounds))
+            }
+            if (!duplicate) unique.add(item)
+        }
+
+        return unique.sortedWith(compareBy({ it.bounds.top / 24 }, { it.bounds.left }))
     }
 
     private fun isAd(e: UiElement): Boolean {

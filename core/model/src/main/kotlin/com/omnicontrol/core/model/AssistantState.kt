@@ -42,5 +42,6 @@ data class UiState(
     val audioLevel: Float = 0f,
     val brainName: String = "",
     val confirmQuestion: String? = null,
-    val messages: List<ChatItem> = emptyList()
+    val messages: List<ChatItem> = emptyList(),
+    val numberTags: List<NumberTag> = emptyList()
 )

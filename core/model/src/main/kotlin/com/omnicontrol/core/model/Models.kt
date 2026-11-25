@@ -3,6 +3,15 @@ package com.omnicontrol.core.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class NumberTag(
+    val number: Int,
+    val elementId: Int,
+    val x: Int,
+    val y: Int,
+    val label: String = ""
+)
+
+@Serializable
 data class RectBounds(
     val left: Int = 0,
     val top: Int = 0,

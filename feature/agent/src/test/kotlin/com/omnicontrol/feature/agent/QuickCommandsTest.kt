@@ -39,6 +39,14 @@ class QuickCommandsTest {
     @Test fun ordinals() {
         assertEquals(1, (QuickCommands.parseClause("play the first video") as QuickStep.Nth).n)
         assertEquals(3, (QuickCommands.parseClause("open 3rd result") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("open 3rd video") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("open video 3") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("video 3") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("open 3") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("tap 3") as QuickStep.Nth).n)
+        assertEquals(3, (QuickCommands.parseClause("3") as QuickStep.Nth).n)
+        assertEquals(2, (QuickCommands.parseClause("number 2") as QuickStep.Nth).n)
+        assertEquals(4, (QuickCommands.parseClause("play 4th video") as QuickStep.Nth).n)
         assertEquals(-1, (QuickCommands.parseClause("tap the last one") as QuickStep.Nth).n)
     }
 

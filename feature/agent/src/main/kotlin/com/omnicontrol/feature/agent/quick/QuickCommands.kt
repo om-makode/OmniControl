@@ -73,7 +73,7 @@ object QuickCommands {
     private val R_SEARCH = Regex("^(search|look up|google)( for| about)? (.+)$")
     private val R_NTH = Regex(
         "^(play|open|tap|click|select|watch|show|choose|press)?( on)? ?(the )?" +
-            "(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th|last|top|number \\d{1,2})" +
+            "(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th|last|top|number \\d{1,2}|video \\d{1,2}|\\d{1,2})" +
             "( one| video| result| item| post| song| chat| link| option| short| reel| product| email| message| entry| row)?( from (the )?(top|list))?$"
     )
     private val R_PLAY = Regex("^(play|watch|put on)( the)? (.+?)( on (youtube|spotify|youtube music))?$")

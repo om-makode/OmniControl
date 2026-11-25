@@ -118,18 +118,22 @@ class QuickExecutor(
     // ------------------------------------------------------------------------------------ nth
 
     private suspend fun nth(n: Int): StepOutcome {
-        var item = snap()?.let { ScreenQueries.nth(it.state, n) }
-        var s: ScreenSnapshot? = null
+        val s = snap()
+        var item = s?.let { ScreenQueries.nth(it.state, n) }
+        var currentSnap = s
         if (item == null) {
-            // Results may still be loading.
-            OmniAccessibilityService.waitForSettle(600, 3000)
-            s = snap()
-            item = s?.let { ScreenQueries.nth(it.state, n) }
+            // Results may still be loading or settling.
+            OmniAccessibilityService.waitForSettle(400, 2500)
+            currentSnap = snap()
+            item = currentSnap?.let { ScreenQueries.nth(it.state, n) }
         }
         if (item == null) {
-            return StepOutcome(false, "I can't see item number ${if (n < 0) "last" else n} on this screen", needsBrain = true)
+            val total = currentSnap?.let { ScreenQueries.contentItems(it.state).size } ?: 0
+            val msg = if (total > 0) "I can only see $total videos on screen right now. Say 'scroll down' to see more."
+                      else "I can't see video number $n on this screen."
+            return StepOutcome(false, msg, needsBrain = false)
         }
-        return fromResult(act(AgentAction("click", target = item.id), s ?: snap()))
+        return fromResult(act(AgentAction("click", target = item.id), currentSnap ?: snap()))
     }
 
     // ------------------------------------------------------------------------------------ tap

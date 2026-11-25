@@ -37,14 +37,17 @@ import com.omnicontrol.core.common.settings.OmniSettings
 import com.omnicontrol.core.common.settings.SettingsState
 import com.omnicontrol.core.model.ChatItem
 import com.omnicontrol.core.model.ChatRole
+import com.omnicontrol.core.model.NumberTag
 import com.omnicontrol.core.model.Phase
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
 import com.omnicontrol.feature.accessibility.TouchFeedback
 import com.omnicontrol.feature.agent.AgentController
 import com.omnicontrol.feature.agent.AgentUi
 import com.omnicontrol.feature.agent.quick.QuickCommands
+import com.omnicontrol.feature.agent.quick.ScreenQueries
 import com.omnicontrol.feature.overlay.ui.BallState
 import com.omnicontrol.feature.overlay.ui.Caption
+import com.omnicontrol.feature.overlay.ui.NumberTagsOverlay
 import com.omnicontrol.feature.overlay.ui.Orb
 import com.omnicontrol.feature.overlay.ui.Panel
 import com.omnicontrol.feature.overlay.ui.TouchBall
@@ -85,6 +88,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
     private var ballHideJob: Job? = null
     private var captionHideJob: Job? = null
     private var inactivityJob: Job? = null
+    private var tagsRefreshJob: Job? = null
     private var confirm: CompletableDeferred<Boolean>? = null
     private var lastSpokeAt = 0L
     private val density get() = resources.displayMetrics.density
@@ -111,6 +115,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
 
         OmniAccessibilityService.touchFeedback = this
         OmniAccessibilityService.panicListener = { main.post { stopTask("Stopped (volume keys)") } }
+        OmniAccessibilityService.screenChangeListener = { main.post { scheduleNumberTagsRefresh(300L) } }
 
         lifecycleScope.launch {
             omniSettings.settingsFlow.collect { s ->
@@ -125,10 +130,12 @@ class AssistantService : LifecycleService(), TouchFeedback {
             AssistantHub.state.map { Triple(it.phase, it.sessionActive, it.status) }.distinctUntilChanged().collect { (_, _, _) ->
                 updateNotification()
                 syncCaption()
+                syncNumberTags()
             }
         }
         registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
         showOrb()
+        scheduleNumberTagsRefresh(500L)
         OmniLog.i(TAG, "Assistant service started")
     }
 
@@ -152,11 +159,13 @@ class AssistantService : LifecycleService(), TouchFeedback {
         agent.release()
         speech.release()
         speaker.shutdown()
+        tagsRefreshJob?.cancel()
         windows.removeAll()
         if (OmniAccessibilityService.touchFeedback === this) OmniAccessibilityService.touchFeedback = null
         OmniAccessibilityService.panicListener = null
+        OmniAccessibilityService.screenChangeListener = null
         AssistantHub.serviceRunning = false
-        AssistantHub.update { it.copy(sessionActive = false, busy = false, phase = Phase.IDLE, panelOpen = false, transcript = "", status = "") }
+        AssistantHub.update { it.copy(sessionActive = false, busy = false, phase = Phase.IDLE, panelOpen = false, transcript = "", status = "", numberTags = emptyList()) }
         super.onDestroy()
     }
 
@@ -193,6 +202,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
                 status = "Listening — say a command")
         }
         resetInactivity()
+        scheduleNumberTagsRefresh(100L)
     }
 
     private fun stopSession() {
@@ -202,8 +212,10 @@ class AssistantService : LifecycleService(), TouchFeedback {
         confirm?.complete(false)
         setForeground(mic = false)
         inactivityJob?.cancel()
+        tagsRefreshJob?.cancel()
+        windows.remove(KEY_TAGS)
         AssistantHub.update {
-            it.copy(sessionActive = false, busy = false, phase = Phase.IDLE, transcript = "", status = "", audioLevel = 0f, stepIndex = 0)
+            it.copy(sessionActive = false, busy = false, phase = Phase.IDLE, transcript = "", status = "", audioLevel = 0f, stepIndex = 0, numberTags = emptyList())
         }
     }
 
@@ -336,7 +348,10 @@ class AssistantService : LifecycleService(), TouchFeedback {
             AssistantHub.update {
                 it.copy(busy = false, stepIndex = 0, phase = if (it.sessionActive) Phase.LISTENING else Phase.IDLE)
             }
-            main.post { syncCaption() }
+            main.post {
+                syncCaption()
+                scheduleNumberTagsRefresh(150L)
+            }
         }
     }
 
@@ -452,6 +467,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
         val params = windows.params(MATCH_PARENT, (h * 0.62f).toInt(), gravity = Gravity.BOTTOM, focusable = false)
         AssistantHub.update { it.copy(panelOpen = true, brainName = agent.brainLabel()) }
         windows.remove(KEY_CAPTION)
+        windows.remove(KEY_TAGS)
         windows.show(KEY_PANEL, params) {
             val s by AssistantHub.state.collectAsState()
             Panel(
@@ -470,6 +486,54 @@ class AssistantService : LifecycleService(), TouchFeedback {
         windows.remove(KEY_PANEL)
         AssistantHub.update { it.copy(panelOpen = false) }
         syncCaption()
+        syncNumberTags()
+    }
+
+    private fun scheduleNumberTagsRefresh(delayMs: Long = 300L) {
+        tagsRefreshJob?.cancel()
+        tagsRefreshJob = lifecycleScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            val snap = OmniAccessibilityService.snapshot() ?: return@launch
+            val pkg = snap.state.packageName
+            val isLauncher = pkg.contains("launcher") || pkg.endsWith(".home") || pkg == "com.miui.home"
+            val items = if (isLauncher) emptyList() else ScreenQueries.contentItems(snap.state)
+            val tags = items.take(10).mapIndexed { idx, el ->
+                val badgeX = (el.bounds.left + 16).coerceIn(8, (snap.state.screenWidth - 72).coerceAtLeast(8))
+                val badgeY = maxOf(el.bounds.top + 16, 24).coerceIn(8, (snap.state.screenHeight - 72).coerceAtLeast(8))
+                NumberTag(
+                    number = idx + 1,
+                    elementId = el.id,
+                    x = badgeX,
+                    y = badgeY,
+                    label = el.primaryLabel
+                )
+            }
+            AssistantHub.update { it.copy(numberTags = tags) }
+            withContext(Dispatchers.Main) {
+                syncNumberTags()
+            }
+        }
+    }
+
+    private fun syncNumberTags() {
+        val s = AssistantHub.state.value
+        val wanted = (s.sessionActive || s.busy) && !s.panelOpen && s.numberTags.isNotEmpty() && Settings.canDrawOverlays(this)
+        if (wanted) {
+            if (!windows.has(KEY_TAGS)) {
+                val params = windows.params(
+                    MATCH_PARENT, MATCH_PARENT,
+                    touchable = false,
+                    focusable = false,
+                    layoutInScreen = true
+                )
+                windows.show(KEY_TAGS, params) {
+                    val st by AssistantHub.state.collectAsState()
+                    NumberTagsOverlay(st.numberTags)
+                }
+            }
+        } else {
+            if (windows.has(KEY_TAGS)) windows.remove(KEY_TAGS)
+        }
     }
 
     // ============================================================================ touch feedback
@@ -641,6 +705,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
         private const val KEY_CAPTION = "caption"
         private const val KEY_PANEL = "panel"
         private const val KEY_BALL = "ball"
+        private const val KEY_TAGS = "tags"
 
         fun start(context: Context, action: String = ACTION_SHOW, text: String? = null) {
             val i = Intent(context, AssistantService::class.java).setAction(action)
