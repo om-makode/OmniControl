@@ -110,12 +110,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
                 }
             }
         }
-        speech = SpeechInput(this).apply {
-            listener = speechListener
-            foregroundPackage = { OmniAccessibilityService.foregroundPackage() }
-            isMediaActionExpected = { OmniAccessibilityService.mediaActionExpected }
-            onMediaPlaybackResumed = { OmniAccessibilityService.mediaActionExpected = false }
-        }
+        speech = SpeechInput(this).apply { listener = speechListener }
         agent = AgentController(this, lifecycleScope, agentUi) { settings }
 
         OmniAccessibilityService.touchFeedback = this
@@ -356,10 +351,6 @@ class AssistantService : LifecycleService(), TouchFeedback {
             main.post {
                 syncCaption()
                 scheduleNumberTagsRefresh(150L)
-                val pkg = OmniAccessibilityService.foregroundPackage().lowercase()
-                if (pkg.contains("youtube") || pkg.contains("video") || pkg.contains("player")) {
-                    OmniAccessibilityService.notifyMediaActionExpected()
-                }
             }
         }
     }

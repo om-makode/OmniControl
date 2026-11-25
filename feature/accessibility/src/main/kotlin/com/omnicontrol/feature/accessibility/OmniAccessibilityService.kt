@@ -100,22 +100,6 @@ class OmniAccessibilityService : AccessibilityService() {
         var connectionListener: ((Boolean) -> Unit)? = null
         @Volatile
         var screenChangeListener: (() -> Unit)? = null
-        @Volatile
-        var mediaActionExpected: Boolean = false
-
-        fun notifyMediaActionExpected() {
-            mediaActionExpected = true
-        }
-
-        fun dispatchMediaKey(play: Boolean): Boolean {
-            val s = instance ?: return false
-            val am = s.getSystemService(AUDIO_SERVICE) as? android.media.AudioManager ?: return false
-            val keyCode = if (play) KeyEvent.KEYCODE_MEDIA_PLAY else KeyEvent.KEYCODE_MEDIA_PAUSE
-            val now = android.os.SystemClock.uptimeMillis()
-            am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0))
-            am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0))
-            return true
-        }
 
         private val actionLock = Mutex()
         private var lastScreenshotAt = 0L
