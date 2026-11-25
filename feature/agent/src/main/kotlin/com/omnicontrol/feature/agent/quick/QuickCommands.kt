@@ -30,7 +30,8 @@ object QuickCommands {
         "open", "launch", "start", "go", "search", "look", "google", "play", "watch", "tap", "click", "press",
         "hit", "select", "choose", "scroll", "swipe", "type", "write", "enter", "show", "pull", "visit", "back",
         "home", "next", "previous", "turn", "switch", "enable", "disable", "send", "ask", "find", "read",
-        "close", "subscribe", "like", "check", "set", "change", "call", "message", "reply", "copy", "paste", "long"
+        "close", "subscribe", "like", "check", "set", "change", "call", "message", "reply", "copy", "paste", "long",
+        "more", "down", "up", "again"
     )
 
     private val SPLIT = Regex("\\s*(?:,|;|\\band then\\b|\\bthen\\b|\\bafter that\\b|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
@@ -57,7 +58,11 @@ object QuickCommands {
     private val R_RECENTS = Regex("^(show |open )?(the )?(recent apps|recents|app switcher|recent)$")
     private val R_NOTIF = Regex("^(open |show |pull down )?(the )?(notifications?|notification (shade|panel))$")
     private val R_QS = Regex("^(open |show )?(the )?quick settings$")
-    private val R_SCROLL = Regex("^scroll( the page| the screen| it)?( up| down| left| right)?( more| again| a bit| a little| little)?$|^(go|move|page) (up|down)$|^(more|keep scrolling|scroll more|show more)$")
+    private val R_SCROLL = Regex(
+        "^(please )?(scroll|page)( the page| the screen| it)?( up| down| left| right)?( more| again| a bit| a little| little)?( please)?$|" +
+        "^(go|move|page) (up|down)( please)?$|" +
+        "^(more|more down|more up|one more|once more|again|down|up|keep scrolling|scroll more|show more)( please)?$"
+    )
     private val R_SWIPE = Regex("^swipe( the screen)? (up|down|left|right)$")
     private val R_SCROLL_END = Regex("^(scroll|go) (to the )?(bottom|end)$")
     private val R_SCROLL_TOP = Regex("^(scroll|go) (back )?(to the )?top$")
@@ -95,7 +100,12 @@ object QuickCommands {
         R_SCROLL_TOP.find(c)?.let { return QuickStep.Scroll("up", 5, "Scrolling to the top") }
         R_SWIPE.find(c)?.let { m -> return QuickStep.Swipe(m.groupValues[2], "Swiping ${m.groupValues[2]}") }
         R_SCROLL.find(c)?.let {
-            val dir = c.split(' ').firstOrNull { it in setOf("up", "down", "left", "right") } ?: "down"
+            val dir = when {
+                c.contains("up") -> "up"
+                c.contains("left") -> "left"
+                c.contains("right") -> "right"
+                else -> "down"
+            }
             return QuickStep.Scroll(dir, 1, "Scrolling $dir")
         }
         R_NEXT_SHORT.find(c)?.let { return QuickStep.Swipe("up", "Next") }

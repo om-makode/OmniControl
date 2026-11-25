@@ -27,7 +27,9 @@ object SpeechFixer {
         "\\blinked ?in\\b" to "LinkedIn",
         "\\btele ?gram\\b" to "Telegram",
         "\\bnet ?flix\\b" to "Netflix",
-        "\\bscroll town\\b" to "scroll down",
+        "\\bscroll (town|done|don)\\b" to "scroll down",
+        "\\bscrolling down\\b" to "scroll down",
+        "\\bscrolling up\\b" to "scroll up",
         "\\bgo bag\\b" to "go back",
         "\\bopen up\\b" to "open"
     ).map { Regex(it.first, RegexOption.IGNORE_CASE) to it.second }
@@ -48,7 +50,7 @@ object SpeechFixer {
     }
 
     private val COMMAND_START = Regex(
-        "^(open|launch|start|go|search|find|play|tap|click|press|scroll|swipe|type|write|send|turn|switch|show|stop|done|back|home|select|call|message|enable|disable|watch|read|what|how|close)\\b",
+        "^(open|launch|start|go|search|find|play|tap|click|press|scroll|swipe|type|write|send|turn|switch|show|stop|done|back|home|select|call|message|enable|disable|watch|read|what|how|close|more|down|up|again|next)\\b",
         RegexOption.IGNORE_CASE
     )
 

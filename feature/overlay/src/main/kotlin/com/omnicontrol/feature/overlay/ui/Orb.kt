@@ -33,10 +33,16 @@ import kotlin.math.sin
 fun Orb(phase: Phase, sessionActive: Boolean, level: Float, busy: Boolean) {
     val color by animateColorAsState(OverlayColors.phase(phase, sessionActive), tween(300), label = "orbColor")
     val t = rememberInfiniteTransition(label = "orb")
-    val pulse by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "pulse")
-    val spin by t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "spin")
-    val wave by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(900, easing = LinearEasing)), label = "wave")
-    val lvl by animateFloatAsState(level, tween(120), label = "lvl")
+    val pulse by if (sessionActive || busy) {
+        t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "pulse")
+    } else androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val spin by if (phase == Phase.THINKING) {
+        t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "spin")
+    } else androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val wave by if (phase == Phase.LISTENING || phase == Phase.HEARING || phase == Phase.SPEAKING) {
+        t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(900, easing = LinearEasing)), label = "wave")
+    } else androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val lvl by animateFloatAsState(if (sessionActive) level else 0f, tween(120), label = "lvl")
 
     Box(Modifier.size(68.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(68.dp)) {

@@ -50,7 +50,14 @@ class QuickCommandsTest {
 
     @Test fun scrollAndSwipe() {
         assertEquals("down", (QuickCommands.parseClause("scroll down") as QuickStep.Scroll).direction)
+        assertEquals("down", (QuickCommands.parseClause("more") as QuickStep.Scroll).direction)
+        assertEquals("down", (QuickCommands.parseClause("more down") as QuickStep.Scroll).direction)
+        assertEquals("down", (QuickCommands.parseClause("down") as QuickStep.Scroll).direction)
+        assertEquals("down", (QuickCommands.parseClause("scroll again") as QuickStep.Scroll).direction)
+        assertEquals("down", (QuickCommands.parseClause("scroll down please") as QuickStep.Scroll).direction)
         assertEquals("up", (QuickCommands.parseClause("scroll up a bit") as QuickStep.Scroll).direction)
+        assertEquals("up", (QuickCommands.parseClause("more up") as QuickStep.Scroll).direction)
+        assertEquals("up", (QuickCommands.parseClause("up") as QuickStep.Scroll).direction)
         assertEquals("up", (QuickCommands.parseClause("swipe up") as QuickStep.Swipe).direction)
         assertTrue(QuickCommands.parseClause("go back") is QuickStep.Global)
         assertTrue(QuickCommands.parseClause("go") !is QuickStep.Scroll)

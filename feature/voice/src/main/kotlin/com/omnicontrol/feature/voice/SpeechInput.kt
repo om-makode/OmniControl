@@ -215,6 +215,13 @@ class SpeechInput(private val context: Context) {
                 else -> {
                     // BUSY, CLIENT, TOO_MANY_REQUESTS, AUDIO, CANNOT_CHECK_SUPPORT...: rebuild the recogniser.
                     consecutiveErrors++
+                    if (usingOnDevice && consecutiveErrors >= 2) {
+                        OmniLog.i(TAG, "On-device recognizer failing ($error), switching to standard recognizer")
+                        onDeviceBroken = true
+                        destroyRecognizer()
+                        listenSoon(200)
+                        return
+                    }
                     destroyRecognizer()
                     if (consecutiveErrors >= 8) {
                         listener?.onProblem("The microphone keeps failing. Is another app using it?", false)

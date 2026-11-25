@@ -15,7 +15,9 @@ import com.omnicontrol.core.common.TextMatch
 import com.omnicontrol.core.model.ActionResult
 import com.omnicontrol.core.model.AgentAction
 import com.omnicontrol.core.model.UiElement
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -259,45 +261,64 @@ class ActionPerformer(
 
     private suspend fun scroll(id: Int?, direction: String, snap: ScreenSnapshot): Pair<Boolean, String> {
         val dir = direction.lowercase()
-        val container: Pair<UiElement, AccessibilityNodeInfo?>? = run {
+        val container = run {
             val explicit = snap.state.element(id)
-            if (explicit != null && explicit.scrollable) return@run explicit to snap.node(explicit.id)
+            if (explicit != null && explicit.scrollable) return@run explicit
             val vertical = dir == "up" || dir == "down"
             snap.state.elements.filter { it.scrollable && it.enabled }
                 .filter { if (vertical) it.bounds.height >= it.bounds.width / 3 else true }
                 .maxByOrNull { it.bounds.area }
-                ?.let { it to snap.node(it.id) }
         }
-        val node = container?.second
-        if (node != null) {
-            val directional = when (dir) {
-                "down" -> AccessibilityAction.ACTION_SCROLL_DOWN
-                "up" -> AccessibilityAction.ACTION_SCROLL_UP
-                "left" -> AccessibilityAction.ACTION_SCROLL_LEFT
-                else -> AccessibilityAction.ACTION_SCROLL_RIGHT
-            }
-            val generic = if (dir == "down" || dir == "right") AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-            else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-            if (node.performAction(directional.id) || node.performAction(generic)) {
-                return true to "Scrolled $dir"
-            }
-        }
-        // Gesture fallback inside the container (or the middle of the screen).
+
         val m = service.resources.displayMetrics
-        val b = container?.first?.bounds
-        val left = b?.left ?: 0; val right = b?.right ?: m.widthPixels
-        val top = b?.top ?: (m.heightPixels * 0.2).toInt(); val bottom = b?.bottom ?: (m.heightPixels * 0.85).toInt()
-        val cx = (left + right) / 2; val cy = (top + bottom) / 2
-        val dy = ((bottom - top) * 0.32).toInt(); val dx = ((right - left) * 0.35).toInt()
+        val screenW = m.widthPixels
+        val screenH = m.heightPixels
+
+        // Determine content viewport bounds (bounded inside the scrollable container if found)
+        val b = container?.bounds
+        val left = (b?.left ?: 0).coerceIn(0, screenW)
+        val right = (b?.right ?: screenW).coerceIn(0, screenW)
+        val top = (b?.top ?: (screenH * 0.12f).toInt()).coerceIn((screenH * 0.08f).toInt(), (screenH * 0.35f).toInt())
+        val bottom = (b?.bottom ?: (screenH * 0.88f).toInt()).coerceIn(top + 200, (screenH * 0.92f).toInt())
+
+        val cx = (left + right) / 2
+        val cy = (top + bottom) / 2
+        val h = bottom - top
+        val w = right - left
+
+        // Full page scroll:
+        // A full page swipe travels ~80% of the viewport height, moving the 4th video and
+        // the item directly next to it up to the top of the screen to reveal the next 4 videos.
         val (x1, y1, x2, y2) = when (dir) {
-            "down" -> listOf(cx, cy + dy, cx, cy - dy)
-            "up" -> listOf(cx, cy - dy, cx, cy + dy)
-            "left" -> listOf(cx - dx, cy, cx + dx, cy)
-            else -> listOf(cx + dx, cy, cx - dx, cy)
+            "down" -> {
+                // Drag upwards: start near the bottom of the content area, drag up to near the top
+                val startY = (bottom - (h * 0.08f)).toInt()
+                val endY = (top + (h * 0.08f)).toInt()
+                listOf(cx, startY, cx, endY)
+            }
+            "up" -> {
+                // Drag downwards: start near the top of the content area, drag down to near the bottom
+                val startY = (top + (h * 0.08f)).toInt()
+                val endY = (bottom - (h * 0.08f)).toInt()
+                listOf(cx, startY, cx, endY)
+            }
+            "left" -> {
+                val startX = (left + (w * 0.08f)).toInt()
+                val endX = (right - (w * 0.08f)).toInt()
+                listOf(startX, cy, endX, cy)
+            }
+            else -> { // right
+                val startX = (right - (w * 0.08f)).toInt()
+                val endX = (left + (w * 0.08f)).toInt()
+                listOf(startX, cy, endX, cy)
+            }
         }
-        feedback()?.showSwipe(x1, y1, x2, y2)
+
         feedback()?.setPassthrough(true)
-        val ok = gestureSwipe(x1, y1, x2, y2, 350)
+        val ok = kotlinx.coroutines.coroutineScope {
+            launch { feedback()?.showSwipe(x1, y1, x2, y2) }
+            gestureSwipe(x1, y1, x2, y2, 420)
+        }
         return ok to if (ok) "Scrolled $dir" else "Could not scroll"
     }
 
