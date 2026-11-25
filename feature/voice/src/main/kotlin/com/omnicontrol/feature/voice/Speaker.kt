@@ -51,10 +51,6 @@ class Speaker(context: Context) {
     private fun setupVoice() {
         val locale = Locale.getDefault()
         if (tts.isLanguageAvailable(locale) < TextToSpeech.LANG_AVAILABLE) tts.language = Locale.US else tts.language = locale
-        runCatching {
-            tts.voices?.filter { !it.isNetworkConnectionRequired && it.locale.language == tts.voice?.locale?.language }
-                ?.maxByOrNull { it.quality }?.let { tts.voice = it }
-        }
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)

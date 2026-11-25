@@ -101,20 +101,27 @@ class SpeechInput(private val context: Context) {
 
     // ------------------------------------------------------------------------------------
 
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { /* audio manager handles ducking */ }
+
     private fun requestTransientFocus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val am = audioManager ?: return
-            val attrs = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(attrs)
-                .setAcceptsDelayedFocusGain(true)
-                .setWillPauseWhenDucked(false)
-                .build()
-            focusRequest = req
-            am.requestAudioFocus(req)
+            try {
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(attrs)
+                    .setOnAudioFocusChangeListener(focusListener, main)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setWillPauseWhenDucked(false)
+                    .build()
+                focusRequest = req
+                am.requestAudioFocus(req)
+            } catch (e: Exception) {
+                OmniLog.w(TAG, "requestTransientFocus failed", e)
+            }
         }
     }
 

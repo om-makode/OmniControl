@@ -138,7 +138,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
                 syncNumberTags()
             }
         }
-        registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        ContextCompat.registerReceiver(this, screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         showOrb()
         scheduleNumberTagsRefresh(500L)
         OmniLog.i(TAG, "Assistant service started")
