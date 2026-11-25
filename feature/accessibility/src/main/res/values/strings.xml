@@ -1,4 +1,4 @@
 <resources>
-    <string name="a11y_label">OmniControl Service</string>
-    <string name="a11y_description">OmniControl reads the screen and performs taps only when you ask it to by voice or text. Nothing is uploaded.</string>
+    <string name="a11y_label">OmniControl</string>
+    <string name="a11y_description">Lets OmniControl read the screen and tap, type and scroll for you when you ask it by voice or text. It only acts on your commands.</string>
 </resources>

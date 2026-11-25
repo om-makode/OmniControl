@@ -1,298 +1,226 @@
 package com.omnicontrol.feature.accessibility
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.omnicontrol.core.common.OmniLog
-import com.omnicontrol.core.model.ElementSource
-import com.omnicontrol.core.model.Observation
 import com.omnicontrol.core.model.RectBounds
 import com.omnicontrol.core.model.Role
+import com.omnicontrol.core.model.ScreenState
 import com.omnicontrol.core.model.UiElement
 import java.security.MessageDigest
 
+/** A screen read plus the live node behind every element id, so actions hit the exact node. */
+class ScreenSnapshot(
+    val state: ScreenState,
+    internal val nodes: Map<Int, AccessibilityNodeInfo>
+) {
+    fun node(id: Int?): AccessibilityNodeInfo? = if (id == null) null else nodes[id]
+}
+
 class ScreenReader(private val service: AccessibilityService) {
 
-    private val packageManager: PackageManager = service.packageManager
+    private val pm: PackageManager = service.packageManager
+    private val labelCache = HashMap<String, String>()
 
-    fun captureObservation(): Observation {
-        val startTime = System.currentTimeMillis()
-        var currentPackage = ""
-        var appLabel = ""
-        var keyboardVisible = false
-        val dialogElementIds = mutableListOf<Int>()
-        var focusedElementId: Int? = null
+    fun read(): ScreenSnapshot {
+        val start = System.currentTimeMillis()
+        val metrics = service.resources.displayMetrics
+        val screen = Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
+        val density = metrics.density
 
-        val windows = try {
-            service.windows
-        } catch (e: Exception) {
-            OmniLog.w(TAG, "Failed to get service.windows", e)
-            emptyList<AccessibilityWindowInfo>()
-        }
+        val windows = try { service.windows } catch (e: Exception) { emptyList<AccessibilityWindowInfo>() }
 
-        // 1. Inspect window list for keyboard and target app windows
-        val interactiveRoots = mutableListOf<Pair<AccessibilityNodeInfo, Boolean>>()
+        var keyboard = false
+        var appPackage = ""
+        var appWindowSeen = false
+        val roots = ArrayList<AccessibilityNodeInfo>()
 
-        var appPackage: String? = null
-        if (windows.isNotEmpty()) {
-            for (window in windows) {
-                if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-                    keyboardVisible = true
-                    continue
-                }
-
-                val root = window.root ?: continue
-                val pkg = root.packageName?.toString() ?: ""
-
-                // Ignore OmniControl's own overlay windows
-                if (pkg == service.packageName) {
-                    root.safeRecycle()
-                    continue
-                }
-
-                if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && pkg.isNotEmpty() && pkg != "com.android.systemui") {
-                    appPackage = pkg
-                } else if (currentPackage.isEmpty() && pkg.isNotEmpty()) {
-                    currentPackage = pkg
-                }
-
-                val isDialog = window.type == AccessibilityWindowInfo.TYPE_SYSTEM
-
-                interactiveRoots.add(root to isDialog)
+        // service.windows is ordered top-most first; read top windows first so dialogs get low ids.
+        for (w in windows) {
+            when (w.type) {
+                AccessibilityWindowInfo.TYPE_INPUT_METHOD -> { keyboard = true; continue }
+                AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY,
+                AccessibilityWindowInfo.TYPE_SPLIT_SCREEN_DIVIDER -> continue
             }
+            val root = w.root ?: continue
+            val pkg = root.packageName?.toString().orEmpty()
+            if (pkg == service.packageName) continue
+            if (pkg == "com.android.systemui") {
+                // Status bar / nav bar are noise; only keep the shade when it is pulled down.
+                val b = Rect(); w.getBoundsInScreen(b)
+                if (b.height() < screen.height() * 0.3f) continue
+            }
+            if (w.type == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                appWindowSeen = true
+                if (appPackage.isEmpty()) appPackage = pkg
+            }
+            roots.add(root)
         }
-        if (!appPackage.isNullOrEmpty()) {
-            currentPackage = appPackage
-        }
-
-        // Fallback to rootInActiveWindow if window list didn't yield any roots
-        if (interactiveRoots.isEmpty()) {
-            val fallbackRoot = service.rootInActiveWindow
-            if (fallbackRoot != null) {
-                val pkg = fallbackRoot.packageName?.toString() ?: ""
-                if (pkg != service.packageName) {
-                    currentPackage = pkg
-                    interactiveRoots.add(fallbackRoot to false)
-                } else {
-                    fallbackRoot.safeRecycle()
+        if (roots.isEmpty()) {
+            service.rootInActiveWindow?.let { r ->
+                if (r.packageName?.toString() != service.packageName) {
+                    roots.add(r); appWindowSeen = true
+                    appPackage = r.packageName?.toString().orEmpty()
                 }
             }
         }
+        if (appPackage.isEmpty()) appPackage = roots.firstOrNull()?.packageName?.toString().orEmpty()
 
-        // 2. Resolve App Label
-        if (currentPackage.isNotEmpty()) {
-            try {
-                val appInfo = packageManager.getApplicationInfo(currentPackage, 0)
-                appLabel = packageManager.getApplicationLabel(appInfo).toString()
-            } catch (_: Exception) {
-                appLabel = currentPackage.substringAfterLast(".")
-            }
-        }
+        val ctx = WalkContext(screen, density)
+        for (root in roots) walk(root, ctx, depth = 0, inList = false, absorbed = false)
 
-        // 3. Traverse interactive roots
-        var nextId = 1
-        val finalElements = mutableListOf<UiElement>()
-
-        for ((rootNode, isDialog) in interactiveRoots) {
-            val rootElements = mutableListOf<UiElement>()
-            traverseNode(
-                node = rootNode,
-                parentId = null,
-                containerId = null,
-                idProvider = { nextId++ },
-                sink = rootElements
-            )
-            rootNode.safeRecycle()
-
-            if (isDialog) {
-                dialogElementIds.addAll(rootElements.map { it.id })
-            }
-            finalElements.addAll(rootElements)
-        }
-
-        // Check for focused element
-        focusedElementId = finalElements.find { it.role == Role.TEXT_FIELD && it.editable }?.id
-
-        // 4. Secure Window / Empty Screen Detection
-        val isSecureWindow = finalElements.isEmpty() && currentPackage.isNotEmpty()
-
-        // 5. Compute Screen Fingerprint
-        val fingerprint = computeFingerprint(currentPackage, finalElements)
-
-        val elapsed = System.currentTimeMillis() - startTime
-        OmniLog.d(TAG, "Screen observation captured: ${finalElements.size} elements from $currentPackage in ${elapsed}ms")
-
-        return Observation(
-            packageName = currentPackage,
-            activityHint = null,
-            appLabel = appLabel,
-            elements = finalElements,
-            screenFingerprint = fingerprint,
-            keyboardVisible = keyboardVisible,
-            focusedElementId = focusedElementId,
-            dialogs = dialogElementIds,
-            isSecureWindow = isSecureWindow,
-            timestamp = System.currentTimeMillis()
+        val elements = ctx.elements
+        val state = ScreenState(
+            packageName = appPackage,
+            appLabel = appLabel(appPackage),
+            elements = elements,
+            fingerprint = fingerprint(appPackage, elements, keyboard),
+            keyboardVisible = keyboard,
+            screenWidth = screen.width(),
+            screenHeight = screen.height(),
+            isSecure = appWindowSeen && elements.isEmpty()
         )
+        OmniLog.d(TAG, "read ${elements.size} elements of $appPackage in ${System.currentTimeMillis() - start}ms")
+        return ScreenSnapshot(state, ctx.nodes)
     }
 
-    private fun traverseNode(
-        node: AccessibilityNodeInfo,
-        parentId: Int?,
-        containerId: Int?,
-        idProvider: () -> Int,
-        sink: MutableList<UiElement>
-    ) {
-        if (!node.isVisibleToUser) {
-            return
-        }
+    private class WalkContext(val screen: Rect, val density: Float) {
+        val elements = ArrayList<UiElement>()
+        val nodes = HashMap<Int, AccessibilityNodeInfo>()
+        var nextId = 1
+    }
 
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-        if (bounds.width() <= 0 || bounds.height() <= 0) {
-            return
-        }
+    /**
+     * @param inList we are inside a scrollable container
+     * @param absorbed an actionable ancestor already shows this subtree's text, so plain text children are skipped
+     */
+    private fun walk(node: AccessibilityNodeInfo, ctx: WalkContext, depth: Int, inList: Boolean, absorbed: Boolean) {
+        if (depth > 60 || ctx.elements.size >= MAX_ELEMENTS) return
+        if (!node.isVisibleToUser) return
+        val r = Rect()
+        node.getBoundsInScreen(r)
+        if (!r.intersect(ctx.screen) || r.width() <= 1 || r.height() <= 1) return
 
-        val text = node.text?.toString()?.trim()
-        val desc = node.contentDescription?.toString()?.trim()
-        val hint = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            node.hintText?.toString()?.trim()
+        val className = node.className?.toString().orEmpty()
+        val text = node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val desc = node.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val hint = node.hintText?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val clickable = node.isClickable
+        val longClickable = node.isLongClickable
+        val editable = node.isEditable
+        val scrollable = node.isScrollable
+        val checkable = node.isCheckable
+        val actionable = clickable || longClickable || editable || scrollable || checkable
+
+        var childrenAbsorbed = absorbed
+        val keep: Boolean
+        var label: String? = text
+
+        if (actionable) {
+            keep = true
+            if (clickable && text == null && desc == null) {
+                label = collectText(node, 3)
+            }
+            if (clickable || checkable) childrenAbsorbed = true
         } else {
-            null
+            val hasInfo = text != null || desc != null
+            val bigImage = className.contains("Image") && desc != null &&
+                r.width() > 40 * ctx.density && r.height() > 40 * ctx.density
+            keep = hasInfo && !absorbed || (bigImage && !absorbed)
         }
-        val viewId = node.viewIdResourceName
-        val className = node.className?.toString() ?: ""
 
-        val isClickable = node.isClickable
-        val isLongClickable = node.isLongClickable
-        val isScrollable = node.isScrollable
-        val isEditable = node.isEditable
-
-        val role = resolveRole(node, className)
-
-        // Check if this node is a container or clickable parent that contains child texts
-        val hasMeaningfulInfo = !text.isNullOrEmpty() ||
-            !desc.isNullOrEmpty() ||
-            !hint.isNullOrEmpty() ||
-            isClickable ||
-            isEditable ||
-            isScrollable
-
-        var assignedId: Int? = null
-
-        if (hasMeaningfulInfo) {
-            assignedId = idProvider()
-
-            // If the element is clickable, try to collect child text if its own text is blank (card pattern)
-            val combinedText = if (isClickable && text.isNullOrEmpty() && desc.isNullOrEmpty()) {
-                collectChildTexts(node)
-            } else {
-                text
-            }
-
-            val uiElement = UiElement(
-                id = assignedId,
-                role = role,
-                text = combinedText,
-                description = desc,
-                hint = hint,
-                viewId = viewId,
-                className = className,
-                bounds = RectBounds(bounds.left, bounds.top, bounds.right, bounds.bottom),
-                clickable = isClickable,
-                longClickable = isLongClickable,
-                scrollable = isScrollable,
-                editable = isEditable,
-                checked = if (node.isCheckable) node.isChecked else null,
-                selected = node.isSelected,
-                enabled = node.isEnabled,
-                isPassword = node.isPassword,
-                source = ElementSource.TREE,
-                parentId = parentId,
-                containerId = containerId
+        if (keep) {
+            val id = ctx.nextId++
+            val role = role(node, className, inList, r, ctx)
+            ctx.elements.add(
+                UiElement(
+                    id = id,
+                    role = role,
+                    text = label?.take(200),
+                    description = desc?.take(200),
+                    hint = hint,
+                    viewId = node.viewIdResourceName,
+                    className = className.substringAfterLast('.'),
+                    bounds = RectBounds(r.left, r.top, r.right, r.bottom),
+                    clickable = clickable,
+                    longClickable = longClickable,
+                    scrollable = scrollable,
+                    editable = editable,
+                    checked = if (checkable) node.isChecked else null,
+                    selected = node.isSelected,
+                    enabled = node.isEnabled,
+                    focused = node.isFocused,
+                    isPassword = node.isPassword,
+                    inList = inList && !scrollable
+                )
             )
-            sink.add(uiElement)
+            ctx.nodes[id] = node
         }
 
-        val currentContainerId = if (isScrollable || role == Role.CONTAINER) assignedId ?: containerId else containerId
-
-        // Recursively traverse children
+        val childInList = inList || scrollable
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            traverseNode(
-                node = child,
-                parentId = assignedId ?: parentId,
-                containerId = currentContainerId,
-                idProvider = idProvider,
-                sink = sink
-            )
-            child.safeRecycle()
+            val child = try { node.getChild(i) } catch (e: Exception) { null } ?: continue
+            walk(child, ctx, depth + 1, childInList, childrenAbsorbed)
         }
     }
 
-    private fun collectChildTexts(node: AccessibilityNodeInfo): String? {
-        val texts = mutableListOf<String>()
-        collectChildTextsRecursive(node, texts)
-        return if (texts.isNotEmpty()) texts.joinToString(" · ") else null
-    }
-
-    private fun collectChildTextsRecursive(node: AccessibilityNodeInfo, sink: MutableList<String>) {
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val text = child.text?.toString()?.trim()
-            if (!text.isNullOrEmpty() && !sink.contains(text)) {
-                sink.add(text)
+    private fun collectText(node: AccessibilityNodeInfo, maxParts: Int): String? {
+        val parts = ArrayList<String>()
+        fun rec(n: AccessibilityNodeInfo, d: Int) {
+            if (parts.size >= maxParts || d > 8) return
+            for (i in 0 until n.childCount) {
+                val c = try { n.getChild(i) } catch (e: Exception) { null } ?: continue
+                if (!c.isVisibleToUser) continue
+                val t = c.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: c.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                if (t != null && parts.none { it == t }) parts.add(t)
+                if (parts.size >= maxParts) return
+                rec(c, d + 1)
             }
-            val desc = child.contentDescription?.toString()?.trim()
-            if (!desc.isNullOrEmpty() && !sink.contains(desc)) {
-                sink.add(desc)
-            }
-            collectChildTextsRecursive(child, sink)
-            child.safeRecycle()
         }
+        rec(node, 0)
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.take(200)
     }
 
-    private fun resolveRole(node: AccessibilityNodeInfo, className: String): Role {
-        return when {
-            node.isEditable || className.contains("EditText", ignoreCase = true) -> Role.TEXT_FIELD
-            className.contains("Button", ignoreCase = true) -> Role.BUTTON
-            className.contains("CheckBox", ignoreCase = true) -> Role.CHECKBOX
-            className.contains("Switch", ignoreCase = true) || className.contains("ToggleButton", ignoreCase = true) -> Role.SWITCH
-            className.contains("Tab", ignoreCase = true) -> Role.TAB
-            className.contains("ImageView", ignoreCase = true) -> if (node.isClickable) Role.BUTTON else Role.IMAGE
-            className.contains("TextView", ignoreCase = true) -> if (node.isClickable) Role.BUTTON else Role.TEXT
-            node.isScrollable || className.contains("RecyclerView", ignoreCase = true) ||
-                className.contains("ListView", ignoreCase = true) ||
-                className.contains("ScrollView", ignoreCase = true) -> Role.CONTAINER
-            node.isClickable -> Role.BUTTON
-            else -> Role.OTHER
+    private fun role(node: AccessibilityNodeInfo, cls: String, inList: Boolean, r: Rect, ctx: WalkContext): Role = when {
+        node.isEditable || cls.contains("EditText") -> Role.TEXT_FIELD
+        cls.contains("Switch") || cls.contains("Toggle") -> Role.SWITCH
+        cls.contains("CheckBox") || cls.contains("RadioButton") || node.isCheckable -> Role.CHECKBOX
+        node.isScrollable || cls.contains("RecyclerView") || cls.contains("ListView") ||
+            cls.contains("ScrollView") || cls.contains("ViewPager") -> Role.CONTAINER
+        cls.contains("Tab") -> Role.TAB
+        inList && node.isClickable && r.width() > ctx.screen.width() * 0.4f && r.height() > 48 * ctx.density -> Role.LIST_ITEM
+        cls.contains("Button") -> Role.BUTTON
+        cls.contains("Image") -> if (node.isClickable) Role.BUTTON else Role.IMAGE
+        node.isClickable -> Role.BUTTON
+        cls.contains("TextView") || node.text != null -> Role.TEXT
+        else -> Role.OTHER
+    }
+
+    private fun appLabel(pkg: String): String {
+        if (pkg.isEmpty()) return ""
+        return labelCache.getOrPut(pkg) {
+            try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg.substringAfterLast('.') }
         }
     }
 
     companion object {
-        private const val TAG = "ScreenReader"
+        private const val TAG = "OmniScreen"
+        private const val MAX_ELEMENTS = 350
 
-        fun computeFingerprint(packageName: String, elements: List<UiElement>): String {
-            val meaningfulSignatures = elements
-                .filter { it.clickable || it.editable || !it.text.isNullOrBlank() || !it.description.isNullOrBlank() }
-                .take(15)
-                .joinToString(";") { "${it.role}:${it.viewId ?: ""}:${it.primaryLabel}" }
-
-            val rawInput = "$packageName|${elements.size}|$meaningfulSignatures"
-            return sha256(rawInput)
-        }
-
-        private fun sha256(input: String): String {
-            val md = MessageDigest.getInstance("SHA-256")
-            val digest = md.digest(input.toByteArray(Charsets.UTF_8))
-            return digest.fold("") { str, it -> str + "%02x".format(it) }.take(16)
+        /** Changes when the visible content changes (navigation, scroll, toggles, typed text). */
+        fun fingerprint(pkg: String, elements: List<UiElement>, keyboard: Boolean): String {
+            val sb = StringBuilder(pkg).append('|').append(keyboard)
+            for (e in elements.take(60)) {
+                sb.append('|').append(e.role.ordinal).append(':').append(e.primaryLabel.take(24))
+                    .append(':').append(e.checked).append(':').append(e.selected)
+                    .append(':').append(e.bounds.top / 40)
+            }
+            val md = MessageDigest.getInstance("SHA-1").digest(sb.toString().toByteArray())
+            return md.joinToString("") { "%02x".format(it) }.take(16)
         }
     }
-}
-
-private fun AccessibilityNodeInfo?.safeRecycle() {
-    ActionExecutor.safeRecycle(this)
 }

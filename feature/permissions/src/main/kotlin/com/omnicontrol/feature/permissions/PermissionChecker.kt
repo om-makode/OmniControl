@@ -3,108 +3,69 @@ package com.omnicontrol.feature.permissions
 import android.Manifest
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.speech.SpeechRecognizer
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
-
-data class ModelsState(
-    val asr: Boolean = false,
-    val vad: Boolean = false,
-    val kws: Boolean = false,
-    val llm: Boolean = false
-) {
-    val allEssentialReady: Boolean get() = asr && vad && llm
-}
 
 data class PermissionsState(
     val overlay: Boolean = false,
-    val accessibility: Boolean = false,
+    val accessibilityEnabled: Boolean = false,
     val accessibilityConnected: Boolean = false,
     val microphone: Boolean = false,
     val notifications: Boolean = false,
     val batteryUnrestricted: Boolean = false,
-    val modelsInstalled: ModelsState = ModelsState()
+    val speechAvailable: Boolean = false,
+    val offlineSpeech: Boolean = false
 ) {
-    val allRequiredGranted: Boolean
-        get() = overlay && accessibility && microphone && notifications
+    val ready: Boolean get() = overlay && accessibilityEnabled && microphone
 }
 
 class PermissionChecker(private val context: Context) {
 
-    private val _state = MutableStateFlow(computeState())
+    private val _state = MutableStateFlow(compute())
     val state: StateFlow<PermissionsState> = _state.asStateFlow()
 
-    fun refresh(): PermissionsState {
-        val newState = computeState()
-        _state.value = newState
-        return newState
+    fun refresh() { _state.value = compute() }
+
+    private fun compute(): PermissionsState {
+        val expected = ComponentName(context, OmniAccessibilityService::class.java).flattenToString()
+        val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+        val notif = (Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+            NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return PermissionsState(
+            overlay = Settings.canDrawOverlays(context),
+            accessibilityEnabled = enabled.split(':').any { it.equals(expected, true) },
+            accessibilityConnected = OmniAccessibilityService.isConnected,
+            microphone = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED,
+            notifications = notif,
+            batteryUnrestricted = pm.isIgnoringBatteryOptimizations(context.packageName),
+            speechAvailable = SpeechRecognizer.isRecognitionAvailable(context),
+            offlineSpeech = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+        )
     }
 
-    private fun computeState(): PermissionsState {
-        val overlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
+    companion object {
+        fun overlaySettings(context: Context) =
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
 
-        val expectedComponent = ComponentName(context, OmniAccessibilityService::class.java).flattenToString()
-        val enabledA11yServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: ""
-        val a11yEnabled = enabledA11yServices.split(':').any {
-            it.equals(expectedComponent, ignoreCase = true)
-        }
-        val a11yConnected = OmniAccessibilityService.instance != null
+        fun accessibilitySettings() = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
 
-        val micGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
+        fun appDetails(context: Context) =
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
 
-        val notifGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED && NotificationManagerCompat.from(context).areNotificationsEnabled()
-        } else {
-            NotificationManagerCompat.from(context).areNotificationsEnabled()
-        }
-
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val batteryUnrestricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
-        } else {
-            true
-        }
-
-        val modelsDir = File(context.filesDir, "models")
-        val asrReady = File(modelsDir, "asr/encoder.onnx").exists()
-        val vadReady = File(modelsDir, "vad/silero_vad.onnx").exists()
-        val kwsReady = File(modelsDir, "kws").exists()
-        val llmReady = (File(modelsDir, "llm").listFiles { f -> f.extension == "gguf" }?.isNotEmpty() == true)
-
-        return PermissionsState(
-            overlay = overlay,
-            accessibility = a11yEnabled,
-            accessibilityConnected = a11yConnected,
-            microphone = micGranted,
-            notifications = notifGranted,
-            batteryUnrestricted = batteryUnrestricted,
-            modelsInstalled = ModelsState(
-                asr = asrReady,
-                vad = vadReady,
-                kws = kwsReady,
-                llm = llmReady
-            )
-        )
+        fun batterySettings(context: Context) =
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
     }
 }

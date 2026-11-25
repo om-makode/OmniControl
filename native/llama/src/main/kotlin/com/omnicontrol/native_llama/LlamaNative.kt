@@ -9,9 +9,14 @@ import java.util.concurrent.Executors
 object LlamaNative {
     private const val TAG = "OmniLLM"
 
+    /** true when libomnillama.so loaded (false on emulators/ABIs we did not build). */
+    @Volatile var available: Boolean = false
+        private set
+
     init {
         try {
             System.loadLibrary("omnillama")
+            available = true
             OmniLog.i(TAG, "libomnillama.so loaded successfully")
         } catch (e: UnsatisfiedLinkError) {
             OmniLog.e(TAG, "Failed to load libomnillama.so", e)
@@ -27,6 +32,8 @@ object LlamaNative {
     external fun generate(handle: Long, prompt: String, grammar: String?, maxTokens: Int): String
     external fun tokenCount(handle: Long, text: String): Int
     external fun free(handle: Long)
+    external fun applyChatTemplate(handle: Long, system: String, user: String): String
+
 
     const val TEST_GRAMMAR = """root ::= "{" ws "\"type\":" ws type "," ws "\"target\":" ws num ws "}"
 type ::= "\"click\"" | "\"scroll\"" | "\"back\""

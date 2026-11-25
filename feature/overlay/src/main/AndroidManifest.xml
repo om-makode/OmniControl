@@ -8,8 +8,16 @@
             android:foregroundServiceType="specialUse|microphone">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Floating assistant bubble that the user taps to control the phone by voice" />
+                android:value="Floating assistant orb that the user taps to control the phone by voice" />
         </service>
+
+        <activity
+            android:name=".MicTrampolineActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 
 </manifest>

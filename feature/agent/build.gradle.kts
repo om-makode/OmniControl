@@ -28,12 +28,8 @@ kotlin {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
-    implementation(project(":core:database"))
     implementation(project(":native:llama"))
     implementation(project(":feature:accessibility"))
-    implementation(project(":feature:voice"))
-    implementation(project(":feature:vision"))
-    implementation(project(":feature:navigator"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)

@@ -1,53 +1,54 @@
 package com.omnicontrol.feature.accessibility
 
 import android.view.accessibility.AccessibilityEvent
-import com.omnicontrol.core.common.OmniLog
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicLong
 
-class ScreenSettleDetector {
+/** Waits until the foreground app stops changing (no UI events for a short quiet period). */
+class ScreenSettleDetector(private val ownPackage: String) {
 
-    private val lastEventTime = AtomicLong(System.currentTimeMillis())
+    private val lastEventTime = AtomicLong(0L)
 
-    fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val type = event?.eventType ?: return
-        when (type) {
+    @Volatile
+    var foregroundPackage: String = ""
+        private set
+
+    fun onEvent(event: AccessibilityEvent) {
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == ownPackage) return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                lastEventTime.set(System.currentTimeMillis())
+                if (pkg != "com.android.systemui") foregroundPackage = pkg
+            }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             AccessibilityEvent.TYPE_WINDOWS_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
-                lastEventTime.set(System.currentTimeMillis())
-            }
+            AccessibilityEvent.TYPE_VIEW_SCROLLED -> lastEventTime.set(System.currentTimeMillis())
         }
     }
 
-    suspend fun waitForSettle(debounceMs: Long = 300, maxWaitMs: Long = 3000): Boolean {
-        val startTime = System.currentTimeMillis()
-        OmniLog.d(TAG, "Waiting for screen settle (debounce: ${debounceMs}ms, max: ${maxWaitMs}ms)")
-
-        // Allow initial events to fire after an action
-        delay(50)
-
+    /**
+     * @param quietMs how long the screen must be still
+     * @param maxMs give up after this long (video players never stop changing)
+     */
+    suspend fun waitForSettle(quietMs: Long = 350, maxMs: Long = 2500, minMs: Long = 150) {
+        val start = System.currentTimeMillis()
+        delay(minMs)
         while (true) {
             val now = System.currentTimeMillis()
-            val quietDuration = now - lastEventTime.get()
-
-            if (quietDuration >= debounceMs) {
-                val totalWait = now - startTime
-                OmniLog.d(TAG, "Screen settled after ${totalWait}ms (${quietDuration}ms quiet)")
-                return true
-            }
-
-            if (now - startTime >= maxWaitMs) {
-                OmniLog.w(TAG, "Screen settle timed out after ${maxWaitMs}ms")
-                return false
-            }
-
+            if (now - lastEventTime.get() >= quietMs) return
+            if (now - start >= maxMs) return
             delay(40)
         }
     }
 
-    companion object {
-        private const val TAG = "ScreenSettleDetector"
+    /** Wait until [pkg] is in front (used after launching an app). */
+    suspend fun waitForPackage(pkg: String, maxMs: Long = 4000): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < maxMs) {
+            if (foregroundPackage == pkg) return true
+            delay(80)
+        }
+        return foregroundPackage == pkg
     }
 }

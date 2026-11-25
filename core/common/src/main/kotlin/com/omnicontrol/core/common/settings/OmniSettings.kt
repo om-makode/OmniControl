@@ -9,89 +9,132 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "omnicontrol_settings")
 
+/** Where the "thinking" happens. Everything except NONE / LOCAL talks HTTP in the OpenAI chat format. */
+enum class BrainProvider(
+    val title: String,
+    val subtitle: String,
+    val defaultUrl: String,
+    val defaultModel: String,
+    val needsKey: Boolean,
+    val leavesPhone: Boolean
+) {
+    NONE(
+        "Quick commands only", "No AI. Open apps, search, play Nth item, tap by name, scroll.",
+        "", "", needsKey = false, leavesPhone = false
+    ),
+    LOCAL(
+        "On-device model", "A .gguf model on the phone (llama.cpp). Private and offline, but slow and less smart.",
+        "", "", needsKey = false, leavesPhone = false
+    ),
+    MY_COMPUTER(
+        "My computer (Ollama / LM Studio)", "Free model running on your Mac/PC over Wi-Fi. Private: stays on your network.",
+        "http://192.168.1.10:11434/v1", "qwen2.5vl:7b", needsKey = false, leavesPhone = false
+    ),
+    GEMINI(
+        "Google Gemini (free key)", "Free API key from aistudio.google.com. Smart + sees the screen. Screen data goes to Google.",
+        "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash", needsKey = true, leavesPhone = true
+    ),
+    GROQ(
+        "Groq (free key)", "Free API key from console.groq.com. Very fast. Screen data goes to Groq.",
+        "https://api.groq.com/openai/v1", "meta-llama/llama-4-scout-17b-16e-instruct", needsKey = true, leavesPhone = true
+    ),
+    OPENROUTER(
+        "OpenRouter (free models)", "Free API key from openrouter.ai, pick any \":free\" model.",
+        "https://openrouter.ai/api/v1", "google/gemma-3-27b-it:free", needsKey = true, leavesPhone = true
+    ),
+    CUSTOM(
+        "Custom (OpenAI-compatible)", "Any server that speaks the OpenAI /chat/completions format.",
+        "http://", "", needsKey = false, leavesPhone = true
+    );
+}
+
 data class SettingsState(
     val onboardingDone: Boolean = false,
-    val offlineMode: Boolean = true,
+    val brainProvider: BrainProvider = BrainProvider.NONE,
+    val brainUrl: String = "",
+    val brainModel: String = "",
+    val brainApiKey: String = "",
+    /** Attach a screenshot (with numbered boxes) to every AI step. Needed for "the video with a car". */
+    val brainVision: Boolean = true,
     val speakReplies: Boolean = true,
-    val silenceTimeoutMin: Int = 3,
-    val endOfSpeechMs: Int = 700,
-    val maxStepsPerCommand: Int = 15,
-    val recordTraces: Boolean = false,
-    val wakeWordEnabled: Boolean = false,
-    val homeBrainEnabled: Boolean = false,
-    val homeBrainUrl: String = "",
-    val selectedLlmModel: String = "",
-    val selectedAsrModel: String = "",
-    val confirmSubscribeAndLike: Boolean = true,
-    val panicKeysEnabled: Boolean = true
-)
+    val preferOfflineSpeech: Boolean = true,
+    val speechLanguage: String = "",
+    val confirmRiskyActions: Boolean = true,
+    val maxSteps: Int = 25,
+    val showTouchBall: Boolean = true
+) {
+    val effectiveUrl: String get() = brainUrl.ifBlank { brainProvider.defaultUrl }.trimEnd('/')
+    val effectiveModel: String get() = brainModel.ifBlank { brainProvider.defaultModel }
+}
 
 class OmniSettings(private val context: Context) {
 
     private object Keys {
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
-        val OFFLINE_MODE = booleanPreferencesKey("offline_mode")
+        val BRAIN_PROVIDER = stringPreferencesKey("brain_provider")
+        val BRAIN_URL = stringPreferencesKey("brain_url")
+        val BRAIN_MODEL = stringPreferencesKey("brain_model")
+        val BRAIN_KEY = stringPreferencesKey("brain_api_key")
+        val BRAIN_VISION = booleanPreferencesKey("brain_vision")
         val SPEAK_REPLIES = booleanPreferencesKey("speak_replies")
-        val SILENCE_TIMEOUT_MIN = intPreferencesKey("silence_timeout_min")
-        val END_OF_SPEECH_MS = intPreferencesKey("end_of_speech_ms")
-        val MAX_STEPS_PER_COMMAND = intPreferencesKey("max_steps_per_command")
-        val RECORD_TRACES = booleanPreferencesKey("record_traces")
-        val WAKE_WORD_ENABLED = booleanPreferencesKey("wake_word_enabled")
-        val HOME_BRAIN_ENABLED = booleanPreferencesKey("home_brain_enabled")
-        val HOME_BRAIN_URL = stringPreferencesKey("home_brain_url")
-        val SELECTED_LLM_MODEL = stringPreferencesKey("selected_llm_model")
-        val SELECTED_ASR_MODEL = stringPreferencesKey("selected_asr_model")
-        val CONFIRM_SUBSCRIBE_AND_LIKE = booleanPreferencesKey("confirm_subscribe_and_like")
-        val PANIC_KEYS_ENABLED = booleanPreferencesKey("panic_keys_enabled")
+        val PREFER_OFFLINE_SPEECH = booleanPreferencesKey("prefer_offline_speech")
+        val SPEECH_LANGUAGE = stringPreferencesKey("speech_language")
+        val CONFIRM_RISKY = booleanPreferencesKey("confirm_risky")
+        val MAX_STEPS = intPreferencesKey("max_steps")
+        val SHOW_TOUCH_BALL = booleanPreferencesKey("show_touch_ball")
     }
 
-    val settingsFlow: Flow<SettingsState> = context.dataStore.data.map { prefs ->
+    val settingsFlow: Flow<SettingsState> = context.dataStore.data.map { p ->
         SettingsState(
-            onboardingDone = prefs[Keys.ONBOARDING_DONE] ?: false,
-            offlineMode = prefs[Keys.OFFLINE_MODE] ?: true,
-            speakReplies = prefs[Keys.SPEAK_REPLIES] ?: true,
-            silenceTimeoutMin = prefs[Keys.SILENCE_TIMEOUT_MIN] ?: 3,
-            endOfSpeechMs = prefs[Keys.END_OF_SPEECH_MS] ?: 700,
-            maxStepsPerCommand = prefs[Keys.MAX_STEPS_PER_COMMAND] ?: 15,
-            recordTraces = prefs[Keys.RECORD_TRACES] ?: false,
-            wakeWordEnabled = prefs[Keys.WAKE_WORD_ENABLED] ?: false,
-            homeBrainEnabled = prefs[Keys.HOME_BRAIN_ENABLED] ?: false,
-            homeBrainUrl = prefs[Keys.HOME_BRAIN_URL] ?: "",
-            selectedLlmModel = prefs[Keys.SELECTED_LLM_MODEL] ?: "",
-            selectedAsrModel = prefs[Keys.SELECTED_ASR_MODEL] ?: "",
-            confirmSubscribeAndLike = prefs[Keys.CONFIRM_SUBSCRIBE_AND_LIKE] ?: true,
-            panicKeysEnabled = prefs[Keys.PANIC_KEYS_ENABLED] ?: true
+            onboardingDone = p[Keys.ONBOARDING_DONE] ?: false,
+            brainProvider = p[Keys.BRAIN_PROVIDER]?.let { runCatching { BrainProvider.valueOf(it) }.getOrNull() }
+                ?: BrainProvider.NONE,
+            brainUrl = p[Keys.BRAIN_URL] ?: "",
+            brainModel = p[Keys.BRAIN_MODEL] ?: "",
+            brainApiKey = p[Keys.BRAIN_KEY] ?: "",
+            brainVision = p[Keys.BRAIN_VISION] ?: true,
+            speakReplies = p[Keys.SPEAK_REPLIES] ?: true,
+            preferOfflineSpeech = p[Keys.PREFER_OFFLINE_SPEECH] ?: true,
+            speechLanguage = p[Keys.SPEECH_LANGUAGE] ?: "",
+            confirmRiskyActions = p[Keys.CONFIRM_RISKY] ?: true,
+            maxSteps = p[Keys.MAX_STEPS] ?: 25,
+            showTouchBall = p[Keys.SHOW_TOUCH_BALL] ?: true
         )
     }
 
-    suspend fun setOnboardingDone(done: Boolean) = setBoolean(Keys.ONBOARDING_DONE, done)
-    suspend fun setOfflineMode(enabled: Boolean) = setBoolean(Keys.OFFLINE_MODE, enabled)
-    suspend fun setSpeakReplies(enabled: Boolean) = setBoolean(Keys.SPEAK_REPLIES, enabled)
-    suspend fun setSilenceTimeoutMin(minutes: Int) = setInt(Keys.SILENCE_TIMEOUT_MIN, minutes)
-    suspend fun setEndOfSpeechMs(ms: Int) = setInt(Keys.END_OF_SPEECH_MS, ms)
-    suspend fun setMaxStepsPerCommand(max: Int) = setInt(Keys.MAX_STEPS_PER_COMMAND, max)
-    suspend fun setRecordTraces(enabled: Boolean) = setBoolean(Keys.RECORD_TRACES, enabled)
-    suspend fun setWakeWordEnabled(enabled: Boolean) = setBoolean(Keys.WAKE_WORD_ENABLED, enabled)
-    suspend fun setHomeBrainEnabled(enabled: Boolean) = setBoolean(Keys.HOME_BRAIN_ENABLED, enabled)
-    suspend fun setHomeBrainUrl(url: String) = setString(Keys.HOME_BRAIN_URL, url)
-    suspend fun setSelectedLlmModel(model: String) = setString(Keys.SELECTED_LLM_MODEL, model)
-    suspend fun setSelectedAsrModel(model: String) = setString(Keys.SELECTED_ASR_MODEL, model)
-    suspend fun setConfirmSubscribeAndLike(confirm: Boolean) = setBoolean(Keys.CONFIRM_SUBSCRIBE_AND_LIKE, confirm)
-    suspend fun setPanicKeysEnabled(enabled: Boolean) = setBoolean(Keys.PANIC_KEYS_ENABLED, enabled)
+    suspend fun current(): SettingsState = settingsFlow.first()
 
-    private suspend fun setBoolean(key: Preferences.Key<Boolean>, value: Boolean) {
-        context.dataStore.edit { it[key] = value }
+    suspend fun setOnboardingDone(done: Boolean) = edit { it[Keys.ONBOARDING_DONE] = done }
+
+    /** Switching provider clears URL/model so the provider defaults apply. The key is kept per provider. */
+    suspend fun setBrainProvider(provider: BrainProvider) = edit {
+        it[Keys.BRAIN_PROVIDER] = provider.name
+        it[Keys.BRAIN_URL] = ""
+        it[Keys.BRAIN_MODEL] = ""
+        it[Keys.BRAIN_KEY] = it[stringPreferencesKey("brain_key_${provider.name}")] ?: ""
     }
 
-    private suspend fun setInt(key: Preferences.Key<Int>, value: Int) {
-        context.dataStore.edit { it[key] = value }
+    suspend fun setBrainUrl(url: String) = edit { it[Keys.BRAIN_URL] = url.trim() }
+    suspend fun setBrainModel(model: String) = edit { it[Keys.BRAIN_MODEL] = model.trim() }
+    suspend fun setBrainApiKey(key: String) = edit {
+        it[Keys.BRAIN_KEY] = key.trim()
+        val provider = it[Keys.BRAIN_PROVIDER] ?: BrainProvider.NONE.name
+        it[stringPreferencesKey("brain_key_$provider")] = key.trim()
     }
+    suspend fun setBrainVision(enabled: Boolean) = edit { it[Keys.BRAIN_VISION] = enabled }
+    suspend fun setSpeakReplies(enabled: Boolean) = edit { it[Keys.SPEAK_REPLIES] = enabled }
+    suspend fun setPreferOfflineSpeech(enabled: Boolean) = edit { it[Keys.PREFER_OFFLINE_SPEECH] = enabled }
+    suspend fun setSpeechLanguage(tag: String) = edit { it[Keys.SPEECH_LANGUAGE] = tag.trim() }
+    suspend fun setConfirmRiskyActions(enabled: Boolean) = edit { it[Keys.CONFIRM_RISKY] = enabled }
+    suspend fun setMaxSteps(steps: Int) = edit { it[Keys.MAX_STEPS] = steps.coerceIn(5, 60) }
+    suspend fun setShowTouchBall(enabled: Boolean) = edit { it[Keys.SHOW_TOUCH_BALL] = enabled }
 
-    private suspend fun setString(key: Preferences.Key<String>, value: String) {
-        context.dataStore.edit { it[key] = value }
+    private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
+        context.dataStore.edit { block(it) }
     }
 }

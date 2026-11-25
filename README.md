@@ -1,74 +1,76 @@
-# OmniControl — Personal AI Android Phone Operator
+# OmniControl
 
-OmniControl is an autonomous, on-device AI voice and screen operator for Android. It perceives your phone's screen using high-frequency accessibility trees, OCR, and vision, executes precise native and gesture actions, speaks with real-time barge-in protection, and finds its way across apps using an on-device screen graph.
-
----
-
-## Key Features
-
-- **Draggable Floating Overlay:**
-  - Glassmorphic Compose UI in `WindowManager` (`TYPE_APPLICATION_OVERLAY`).
-  - 56dp animated edge-snapping bubble with dynamic keyboard focus management.
-  - Full-screen high-contrast target highlight pulse layer.
-  - Dynamic status pill showing listening/thinking/executing states with one-tap Stop.
-
-- **Real-Time Voice Engine & Barge-In:**
-  - Continuous 16 kHz mono audio capture with acoustic echo cancellation (`VOICE_COMMUNICATION`).
-  - Streaming Zipformer ASR, Silero VAD, and sub-500ms keyword spotting ("stop", "cancel", "wait").
-  - FastRouter (<300ms) for navigation and app control without touching heavy neural weights.
-  - Half-duplex barge-in protection with Android offline Text-To-Speech.
-
-- **Autonomous ReAct Agent Loop:**
-  - On-device GBNF grammar constrained decoding for structured `{ thought, action, say }` generation.
-  - Token-efficient screen observation prompt builder (<600 tokens).
-  - SafetyGuard 4-tier risk classification: `SAFE`, `CONFIRM`, `HANDOFF`, `BLOCKED`.
-  - Room SQLite conversation history and app stack memory.
-
-- **Visual Understanding Pipeline:**
-  - Rate-limited screen capture with secure black-screen window detection.
-  - HSV dominant color analyzer for natural phrases ("the red button", "blue icon").
-  - Bundled ML Kit text recognition for extracting text on custom canvases/views.
-  - Set-of-Marks numbered visual disambiguation overlays.
-
-- **Universal Navigator & Routines:**
-  - Persistent screen transition graph with Dijkstra shortest-path navigation in Room.
-  - DeepLink and system Settings intent registry.
-  - Interactive teach-mode recording for custom macro routines.
-  - Automatic promotional popup dismissal.
-
----
-
-## Architecture
+A floating AI assistant that operates your Android phone by voice. Tap the orb, talk, and it opens apps, searches, taps, types, scrolls and works through multi-step tasks while you watch a glowing **touching ball** do each touch.
 
 ```
-OmniControl/
-├── app/                      # App shell, DI, Navigation, Compose screens
-├── core/
-│   ├── model/                # Domain models, Observation, UiElement, AssistantState
-│   ├── common/               # Dispatchers, OmniLog, CrashHandler
-│   └── database/             # Room v2 SQLite database, DAOs, Entities
-├── feature/
-│   ├── permissions/          # Permission checker & onboarding wizard
-│   ├── overlay/              # WindowManager Compose bubble, panel, status pill, highlights
-│   ├── accessibility/        # AccessibilityService, tree reader, action executor, verifier
-│   ├── voice/                # AudioRecord, Sherpa-ONNX ASR, FastRouter, TTS
-│   ├── agent/                # GBNF grammar, ReAct loop, SafetyGuard, ConversationManager
-│   ├── vision/               # ScreenshotManager, ML Kit OCR, ColorAnalyzer, Set-of-Marks
-│   └── navigator/            # ElementSignature, ScreenGraph Dijkstra, Routines, Popups
-└── native/
-    └── llama/                # llama.cpp b4999 JNI (libomnillama.so)
+"Open YouTube and play the first video"
+"Search Kotlin coroutines on YouTube" → "play the second one" → "go back"
+"Open ChatGPT, ask how to turn on dark mode in Android, then do it"
+"Open the video with a car in the thumbnail"          (needs an AI brain with vision)
 ```
 
----
+## How it works
 
-## Quick Start
+| Layer | What it does |
+|---|---|
+| **Voice** (`feature/voice`) | Android's speech recognizer in a self-healing loop: prefers the on-device recognizer (offline), restarts after every phrase, recovers from every error code. Mutes itself while it talks, fixes common mis-hearings ("you tube", "chat gpt") and picks the best of five guesses using your installed app names. |
+| **Quick commands** (`feature/agent/quick`) | Instant, no AI: open apps, search (uses YouTube/Google/Play/Maps deep links), "play the Nth video/result", tap things by name, type, scroll, swipe, back/home. Compound commands are split ("open X, search Y and play the second"). |
+| **AI brain** (`feature/agent/brain`) | For everything else. Every step it reads the screen (plus a screenshot with numbered boxes) and chooses one action, then looks again. It keeps notes, so it can read instructions in one app (e.g. ChatGPT) and carry them out in another. |
+| **Hands & eyes** (`feature/accessibility`) | Accessibility service. Reads every window, taps the exact node (or does a real finger gesture if the app ignores the tap), types, scrolls, takes screenshots. Checks after every action whether the screen changed. |
+| **Overlay** (`feature/overlay`) | The orb, a live caption ("what you said / what I'm doing"), a chat panel and the touching ball. |
+| **Safety** | Asks before send/buy/delete/post/subscribe/call. Never types passwords or touches payment PINs. Say "stop", tap the orb, or press Volume Up + Volume Down together to stop instantly. |
 
-### Build & Run
+## AI brain options (all free)
+
+Pick one in the app: **AI brain**. Then press **Test connection**.
+
+| Option | Setup | Notes |
+|---|---|---|
+| Quick commands only | none | Works offline. No multi-step reasoning. |
+| **My computer (Ollama)** | On your Mac: `brew install ollama` → `ollama pull qwen2.5vl:7b` → `OLLAMA_HOST=0.0.0.0 ollama serve`. In the app, URL `http://<mac-ip>:11434/v1`. | Private: everything stays on your Wi-Fi. Sees screenshots. |
+| **Gemini (free key)** | Key from aistudio.google.com | Smart + vision. Screen data goes to Google. |
+| **Groq (free key)** | Key from console.groq.com | Very fast. |
+| OpenRouter | Key from openrouter.ai, any `:free` model | |
+| On-device | Import a `.gguf` (e.g. Qwen2.5-3B-Instruct Q4_K_M) or `./tools/push_model.sh model.gguf` | Fully offline but slow and less capable; no vision. |
+
+Model names change over time. If a default model name stops working, put in the current one from the provider's model list.
+
+## Build & install
+
+Requirements: Android Studio (JDK 17), Android SDK 36, NDK 27.1.12297006, CMake 3.22.1.
+
 ```bash
-./gradlew :app:assembleDebug testDebugUnitTest
+git clone --recurse-submodules https://github.com/om-makode/OmniControl.git
+cd OmniControl
+./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-For complete setup instructions, see [docs/SETUP.md](docs/SETUP.md).
-For manual test procedures, see [docs/TESTING.md](docs/TESTING.md).
-For performance specifications, see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+If you cloned without `--recurse-submodules`: `git submodule update --init --depth 1`.
+
+## First run on the phone
+
+1. Open OmniControl and finish **Setup**:
+   - Display over other apps
+   - Screen control (Accessibility). If the switch is greyed out: Settings → Apps → OmniControl → ⋮ → **Allow restricted settings**, then try again.
+   - Microphone, Notifications. Battery "Unrestricted" is optional but stops Android from killing the assistant.
+2. For offline, beep-free listening: Settings → Google → Speech (or "On-device recognition") → download your language.
+3. Tap **Start assistant**. The orb appears.
+4. **Tap the orb** to start listening and speak. Keep giving commands, no need to tap again.
+   - Tap the orb while it works = stop that task. Tap again when idle = stop listening.
+   - **Long-press the orb** = chat panel (type commands, see history, confirm actions).
+   - Say **"stop"** to cancel, **"done"** to stop listening.
+
+## Tests
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+Covers command parsing, speech clean-up, AI reply parsing and on-screen item matching.
+
+## Limits
+
+- Apps that block screen reading (banking, some payment screens) can't be seen by any accessibility app. The assistant tells you and stops.
+- Visual requests ("the video with a car") need an AI brain with image support.
+- Android's recognizer needs either internet or a downloaded offline language pack.

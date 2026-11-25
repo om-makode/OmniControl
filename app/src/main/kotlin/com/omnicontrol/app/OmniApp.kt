@@ -1,39 +1,21 @@
 package com.omnicontrol.app
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.os.Build
 import com.omnicontrol.core.common.CrashHandler
-import com.omnicontrol.core.common.OmniLog
-import dagger.hilt.android.HiltAndroidApp
+import com.omnicontrol.core.common.settings.OmniSettings
+import com.omnicontrol.feature.permissions.PermissionChecker
 
-@HiltAndroidApp
 class OmniApp : Application() {
+
+    lateinit var settings: OmniSettings
+        private set
+    lateinit var permissions: PermissionChecker
+        private set
 
     override fun onCreate() {
         super.onCreate()
         CrashHandler.init(this)
-        OmniLog.i("App", "OmniApp initialized with Hilt and CrashHandler")
-        createNotificationChannels()
-    }
-
-    private fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID_OVERLAY,
-                "OmniControl Assistant",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "OmniControl overlay and voice session notifications"
-            }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
-        }
-    }
-
-    companion object {
-        const val CHANNEL_ID_OVERLAY = "omnicontrol_overlay_channel"
+        settings = OmniSettings(this)
+        permissions = PermissionChecker(this)
     }
 }

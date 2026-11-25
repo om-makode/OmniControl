@@ -2,123 +2,108 @@ package com.omnicontrol.feature.overlay.window
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.ComposeView
 import com.omnicontrol.core.common.OmniLog
 
+/**
+ * Adds Compose content as floating windows. Each add creates a fresh ComposeView with its own
+ * lifecycle owner (re-attaching an owner crashes), so windows can be shown/hidden freely.
+ */
 class OverlayWindowManager(private val context: Context) {
 
-    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val windows = mutableMapOf<String, Pair<View, WindowManager.LayoutParams>>()
-    private val lifecycleOwners = mutableMapOf<String, OverlayLifecycleOwner>()
+    private class Entry(val view: View, val params: WindowManager.LayoutParams, val owner: OverlayLifecycleOwner)
 
-    fun createDefaultParams(
+    private val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val windows = LinkedHashMap<String, Entry>()
+
+    fun params(
         width: Int = WRAP_CONTENT,
         height: Int = WRAP_CONTENT,
         gravity: Int = Gravity.TOP or Gravity.START,
         x: Int = 0,
         y: Int = 0,
-        flags: Int = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+        touchable: Boolean = true,
+        focusable: Boolean = false,
+        layoutInScreen: Boolean = false
     ): WindowManager.LayoutParams {
-        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
-
-        return WindowManager.LayoutParams(
-            width,
-            height,
-            windowType,
-            flags,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            this.gravity = gravity
-            this.x = x
-            this.y = y
-        }
-    }
-
-    fun addWindow(key: String, view: View, params: WindowManager.LayoutParams) {
-        try {
-            if (windows.containsKey(key)) {
-                removeWindow(key)
+        var flags = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+        if (!focusable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        if (!touchable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        if (layoutInScreen) flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        return WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT)
+            .apply {
+                this.gravity = gravity
+                this.x = x
+                this.y = y
+                if (layoutInScreen) {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    fitInsetsTypes = 0
+                }
             }
-            val owner = OverlayLifecycleOwner()
-            owner.attach(view)
-            lifecycleOwners[key] = owner
+    }
 
-            windowManager.addView(view, params)
-            windows[key] = view to params
-            OmniLog.i(TAG, "Window '$key' added successfully")
+    fun show(key: String, params: WindowManager.LayoutParams, content: @Composable () -> Unit): View? {
+        remove(key)
+        return try {
+            val view = ComposeView(context).apply { setContent(content) }
+            val owner = OverlayLifecycleOwner().also { it.attach(view) }
+            wm.addView(view, params)
+            windows[key] = Entry(view, params, owner)
+            view
         } catch (e: Exception) {
-            OmniLog.e(TAG, "Failed to add window '$key'", e)
+            OmniLog.e(TAG, "Could not show window '$key'", e)
+            null
         }
     }
 
-    fun updateWindow(key: String, params: WindowManager.LayoutParams) {
-        val entry = windows[key] ?: return
-        try {
-            windowManager.updateViewLayout(entry.first, params)
-            windows[key] = entry.first to params
-        } catch (e: Exception) {
-            OmniLog.e(TAG, "Failed to update window '$key'", e)
-        }
+    fun view(key: String): View? = windows[key]?.view
+    fun paramsOf(key: String): WindowManager.LayoutParams? = windows[key]?.params
+    fun has(key: String): Boolean = windows.containsKey(key)
+
+    fun update(key: String) {
+        val e = windows[key] ?: return
+        try { wm.updateViewLayout(e.view, e.params) } catch (ex: Exception) { OmniLog.w(TAG, "update '$key' failed", ex) }
     }
 
-    fun removeWindow(key: String) {
-        val entry = windows.remove(key) ?: return
-        try {
-            lifecycleOwners.remove(key)?.destroy()
-            windowManager.removeViewImmediate(entry.first)
-            OmniLog.i(TAG, "Window '$key' removed successfully")
-        } catch (e: Exception) {
-            OmniLog.w(TAG, "Error removing window '$key'", e)
-        }
+    fun remove(key: String) {
+        val e = windows.remove(key) ?: return
+        try { wm.removeViewImmediate(e.view) } catch (_: Exception) {}
+        e.owner.destroy()
     }
+
+    fun removeAll() = windows.keys.toList().forEach { remove(it) }
 
     fun setTouchable(key: String, touchable: Boolean) {
-        val entry = windows[key] ?: return
-        val params = entry.second
-        if (touchable) {
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-        } else {
-            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        }
-        updateWindow(key, params)
+        val e = windows[key] ?: return
+        val old = e.params.flags
+        e.params.flags = if (touchable) old and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        else old or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        if (old != e.params.flags) update(key)
     }
 
     fun setFocusable(key: String, focusable: Boolean) {
-        val entry = windows[key] ?: return
-        val params = entry.second
-        if (focusable) {
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-        } else {
-            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        }
-        updateWindow(key, params)
+        val e = windows[key] ?: return
+        val old = e.params.flags
+        e.params.flags = if (focusable) old and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        else old or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        if (old != e.params.flags) update(key)
     }
 
-    fun getParams(key: String): WindowManager.LayoutParams? {
-        return windows[key]?.second
+    fun setAlpha(key: String, alpha: Float) {
+        val e = windows[key] ?: return
+        if (e.params.alpha == alpha) return
+        e.params.alpha = alpha
+        update(key)
     }
 
-    fun hasWindow(key: String): Boolean = windows.containsKey(key)
-
-    fun removeAll() {
-        val keys = windows.keys.toList()
-        for (k in keys) {
-            removeWindow(k)
-        }
-    }
+    fun keys(): Set<String> = windows.keys.toSet()
 
     companion object {
-        private const val TAG = "OmniOverlay"
+        private const val TAG = "OmniWindows"
     }
 }

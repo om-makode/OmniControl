@@ -237,4 +237,40 @@ Java_com_omnicontrol_native_1llama_LlamaNative_free(
     LOGI("OmniLlamaInstance freed");
 }
 
+// Formats a system + user message with the model's own chat template (falls back to ChatML).
+JNIEXPORT jstring JNICALL
+Java_com_omnicontrol_native_1llama_LlamaNative_applyChatTemplate(
+        JNIEnv * env,
+        jobject /* this */,
+        jlong handle,
+        jstring jsystem,
+        jstring juser
+) {
+    auto * instance = reinterpret_cast<OmniLlamaInstance *>(handle);
+    const char * sys_c = env->GetStringUTFChars(jsystem, nullptr);
+    const char * usr_c = env->GetStringUTFChars(juser, nullptr);
+    std::string sys = sys_c ? sys_c : "";
+    std::string usr = usr_c ? usr_c : "";
+    if (sys_c) env->ReleaseStringUTFChars(jsystem, sys_c);
+    if (usr_c) env->ReleaseStringUTFChars(juser, usr_c);
+
+    std::string result;
+    if (instance && instance->model) {
+        const char * tmpl = llama_model_chat_template(instance->model, nullptr);
+        llama_chat_message msgs[2] = { { "system", sys.c_str() }, { "user", usr.c_str() } };
+        std::vector<char> buf(2 * (sys.size() + usr.size()) + 512);
+        int32_t n = llama_chat_apply_template(tmpl, msgs, 2, true, buf.data(), (int32_t) buf.size());
+        if (n > (int32_t) buf.size()) {
+            buf.resize(n + 1);
+            n = llama_chat_apply_template(tmpl, msgs, 2, true, buf.data(), (int32_t) buf.size());
+        }
+        if (n > 0) result.assign(buf.data(), n);
+    }
+    if (result.empty()) {
+        result = "<|im_start|>system\n" + sys + "<|im_end|>\n<|im_start|>user\n" + usr +
+                 "<|im_end|>\n<|im_start|>assistant\n";
+    }
+    return env->NewStringUTF(result.c_str());
+}
+
 } // extern "C"
