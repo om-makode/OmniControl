@@ -33,6 +33,8 @@ interface Brain {
     val name: String
     /** Whether screenshots are sent with each step. */
     val seesImages: Boolean
+    /** true = runs on the phone or on the user's own computer (data never reaches an outside company). */
+    val isPrivate: Boolean
     suspend fun decide(request: BrainRequest): Result<BrainDecision>
     /** Plain text completion (used for "Test connection"). */
     suspend fun ping(): Result<String>

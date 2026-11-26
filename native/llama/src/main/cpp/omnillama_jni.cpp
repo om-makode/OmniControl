@@ -212,7 +212,7 @@ Java_com_omnicontrol_native_1llama_LlamaNative_generate(
     llama_sampler_free(smpl);
     llama_batch_free(batch);
 
-    LOGI("Generation output: %s", output.c_str());
+    LOGI("Generation finished: %zu chars", output.length());
     return env->NewStringUTF(output.c_str());
 }
 

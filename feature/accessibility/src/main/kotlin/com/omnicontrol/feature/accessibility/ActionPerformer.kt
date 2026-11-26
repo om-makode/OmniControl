@@ -134,7 +134,7 @@ class ActionPerformer(
             settle.waitForSettle(quietMs = 300, maxMs = 1800)
             val changed = reader.read().state.fingerprint != snap.state.fingerprint
             if (changed) return true to "${if (long) "Long-pressed" else "Tapped"} \"$label\""
-            OmniLog.d(TAG, "node click on '$label' changed nothing, trying a real touch")
+            OmniLog.d(TAG, "node click changed nothing, trying a real touch")
         }
         // 2) a real finger-like gesture at the visible centre
         acted = gestureTap(point.first, point.second, if (long) 700 else 60)

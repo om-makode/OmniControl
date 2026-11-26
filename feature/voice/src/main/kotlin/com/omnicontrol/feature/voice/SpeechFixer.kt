@@ -32,8 +32,10 @@ object SpeechFixer {
         "\\bscrolling up\\b" to "scroll up",
         "\\bgo bag\\b" to "go back",
         "\\bopen up\\b" to "open",
-        "\\b(sex|secs|sechs) (video|result|item|one|short|reel|song)\\b" to "6th $2",
-        "\\b(open|play|tap|click|watch|choose|select) (sex|secs|sechs)\\b" to "$1 6"
+        // "six" misheard as harmless words. (A misheard explicit word is never auto-corrected:
+        // the voice gate asks the user to repeat instead, see VoiceGate.)
+        "\\b(secs|sechs) (video|result|item|one|short|reel|song)\\b" to "6th $2",
+        "\\b(open|play|tap|click|watch|choose|select) (secs|sechs)\\b" to "$1 6"
     ).map { Regex(it.first, RegexOption.IGNORE_CASE) to it.second }
 
     private val FILLER_PREFIX = Regex(

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omnicontrol.core.model.ChatItem
 import com.omnicontrol.core.model.ChatRole
+import com.omnicontrol.core.model.ConfirmRequest
 import com.omnicontrol.core.model.UiState
 
 private val SUGGESTIONS = listOf(
@@ -113,18 +114,9 @@ fun Panel(
             }
         }
 
-        state.confirmQuestion?.let { q ->
+        state.confirm?.let { req ->
             Spacer(Modifier.height(8.dp))
-            Column(
-                Modifier.fillMaxWidth().background(OverlayColors.Orange.copy(alpha = 0.12f), RoundedCornerShape(18.dp)).padding(12.dp)
-            ) {
-                Text(q, color = OverlayColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Pill("Yes, do it", OverlayColors.Green) { onConfirm(true) }
-                    Pill("No", OverlayColors.Red) { onConfirm(false) }
-                }
-            }
+            ConfirmCard(req, onConfirm)
         }
 
         Spacer(Modifier.height(8.dp))
@@ -160,6 +152,50 @@ fun Panel(
                 if (input.isNotBlank()) { onSend(input); input = "" } else onMic()
             }
         }
+    }
+}
+
+/** "Proposed action" card: exactly what will happen, waiting for the user's decision. */
+@Composable
+private fun ConfirmCard(req: ConfirmRequest, onConfirm: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        Modifier.fillMaxWidth()
+            .background(OverlayColors.SurfaceSoft, shape)
+            .border(1.5.dp, OverlayColors.Orange.copy(alpha = 0.7f), shape)
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).background(OverlayColors.Orange, CircleShape))
+            Spacer(Modifier.width(8.dp))
+            Text("PROPOSED ACTION · WAITING FOR YOU", color = OverlayColors.Orange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(req.title, color = OverlayColors.Text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        if (req.detail.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                req.detail, color = OverlayColors.Text, fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth().background(OverlayColors.SurfaceHigh, RoundedCornerShape(12.dp)).padding(10.dp)
+            )
+        }
+        req.warning?.let {
+            Spacer(Modifier.height(6.dp))
+            Text("⚠ $it", color = OverlayColors.Amber, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.weight(1f).background(OverlayColors.Green, RoundedCornerShape(14.dp)).clickable { onConfirm(true) }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text(req.confirmLabel, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+            Box(
+                Modifier.weight(1f).background(OverlayColors.SurfaceHigh, RoundedCornerShape(14.dp)).clickable { onConfirm(false) }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("Cancel", color = OverlayColors.Text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("Or say \"confirm\" / \"cancel\". Cancels by itself after 30 seconds.", color = OverlayColors.TextDim, fontSize = 11.sp)
     }
 }
 

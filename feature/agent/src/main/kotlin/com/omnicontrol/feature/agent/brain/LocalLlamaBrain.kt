@@ -14,6 +14,7 @@ class LocalLlamaBrain(private val modelFile: File) : Brain {
 
     override val name: String = "On-device · ${modelFile.nameWithoutExtension.take(28)}"
     override val seesImages: Boolean = false
+    override val isPrivate: Boolean = true
 
     private var handle = 0L
 
@@ -36,7 +37,6 @@ class LocalLlamaBrain(private val modelFile: File) : Brain {
             )
             LlamaNative.generate(h, prompt, GRAMMAR, 220)
         }
-        OmniLog.d(TAG, "local output: $raw")
         Prompts.parseDecision(raw).getOrThrow()
     }
 

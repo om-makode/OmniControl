@@ -56,7 +56,7 @@ class AppLauncher(private val context: Context) {
             )
             if (s > bestScore) { bestScore = s; best = app }
         }
-        OmniLog.d(TAG, "find('$name') -> ${best?.label} score=$bestScore")
+        OmniLog.d(TAG, "app lookup score=$bestScore")
         return if (bestScore >= 0.72) best else null
     }
 

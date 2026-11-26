@@ -19,9 +19,17 @@ object BrainFactory {
                 baseUrl = url,
                 model = model,
                 apiKey = s.brainApiKey,
-                vision = s.brainVision
+                vision = s.brainVision,
+                isPrivate = !s.brainProvider.leavesPhone || isHomeNetwork(url)
             )
         }
+    }
+
+    /** Plain-http servers on the local network (the user's own computer) count as private. */
+    fun isHomeNetwork(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return false
+        return host == "localhost" || host.endsWith(".local") || host.startsWith("10.") || host.startsWith("192.168.") ||
+            Regex("^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(host) || host.startsWith("127.")
     }
 
     /** Human readable reason why [create] returned null. */

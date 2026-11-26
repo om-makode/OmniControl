@@ -30,7 +30,8 @@ class OpenAiCompatibleBrain(
     private val baseUrl: String,
     private val model: String,
     private val apiKey: String,
-    vision: Boolean
+    vision: Boolean,
+    override val isPrivate: Boolean
 ) : Brain {
 
     @Volatile
@@ -54,7 +55,7 @@ class OpenAiCompatibleBrain(
         val parsed = Prompts.parseDecision(text)
         if (parsed.isSuccess) return parsed
         // One repair attempt: tell the model exactly what went wrong.
-        OmniLog.w(TAG, "Bad JSON from model, asking again: ${text.take(200)}")
+        OmniLog.w(TAG, "Bad JSON from model (${text.length} chars), asking again")
         val retry = complete(
             Prompts.SYSTEM,
             Prompts.userMessage(request.copy(screenshotBase64 = null)) +

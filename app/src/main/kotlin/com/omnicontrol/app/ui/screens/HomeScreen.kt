@@ -195,7 +195,8 @@ fun HomeScreen(
             Bullet("Tap the orb while it works to stop it. Long-press the orb to open the chat and type.")
             Bullet("Say \"stop\" to cancel a task, \"done\" to stop listening.")
             Bullet("Press Volume Up + Volume Down together to stop instantly.")
-            Bullet("It asks before sending, buying, deleting or posting anything.")
+            Bullet("It shows a \"Proposed action\" card and waits for you before sending, calling, buying, deleting or posting.")
+            Bullet("It never does payments, passwords/OTPs or security settings. It hands those back to you.")
         }
         Spacer(Modifier.height(32.dp))
     }

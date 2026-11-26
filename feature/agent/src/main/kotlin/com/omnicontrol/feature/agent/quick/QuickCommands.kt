@@ -159,8 +159,9 @@ object QuickCommands {
 
     val STOP = Regex("^(stop|cancel|wait|hold on|pause|freeze|abort|stop it|stop that|never mind|nevermind)$")
     val END = Regex("^(done|stop listening|that's all|that is all|thats all|bye|goodbye|exit|finish|close assistant|go to sleep|thank you that's all)$")
-    val YES = Regex("^(yes|yeah|yep|yup|sure|ok|okay|do it|go ahead|confirm|correct|right|haan|ha)$")
-    val NO = Regex("^(no|nope|don't|do not|cancel|stop|nah|nahi|wrong)$")
+    /** Deliberately strict: background chatter like "ok" or "right" must not approve anything. */
+    val YES = Regex("^(yes|yeah|yep|yes please|yes do it|yes send( it)?|yes call|confirm|confirm it|confirm send|confirm call|confirmed|send it|do it|go ahead|haan|haan ji)$")
+    val NO = Regex("^(no|nope|no thanks|don't|dont|do not|cancel|cancel it|stop|nah|nahi|wrong|not now)$")
 
     fun isStop(text: String) = STOP.matches(light(text))
     fun isEnd(text: String) = END.matches(light(text))

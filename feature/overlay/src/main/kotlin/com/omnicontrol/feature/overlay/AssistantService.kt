@@ -37,6 +37,7 @@ import com.omnicontrol.core.common.settings.OmniSettings
 import com.omnicontrol.core.common.settings.SettingsState
 import com.omnicontrol.core.model.ChatItem
 import com.omnicontrol.core.model.ChatRole
+import com.omnicontrol.core.model.ConfirmRequest
 import com.omnicontrol.core.model.NumberTag
 import com.omnicontrol.core.model.Phase
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
@@ -55,6 +56,7 @@ import com.omnicontrol.feature.overlay.window.OverlayWindowManager
 import com.omnicontrol.feature.voice.SpeechFixer
 import com.omnicontrol.feature.voice.SpeechInput
 import com.omnicontrol.feature.voice.Speaker
+import com.omnicontrol.feature.voice.VoiceGate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -250,9 +252,10 @@ class AssistantService : LifecycleService(), TouchFeedback {
         }
 
         override fun onPartial(text: String) {
-            // Instant stop while something is running, without waiting for the final result.
-            if (AssistantHub.state.value.busy && QuickCommands.isStop(SpeechFixer.clean(text))) {
-                stopTask(); return
+            // Instant stop/cancel while something is running or waiting for approval.
+            val st = AssistantHub.state.value
+            if ((st.busy || confirm != null) && QuickCommands.isStop(SpeechFixer.clean(text))) {
+                stopTask("Cancelled"); return
             }
             AssistantHub.update {
                 it.copy(transcript = text, phase = if (it.busy || it.phase == Phase.CONFIRM) it.phase else Phase.HEARING)
@@ -261,8 +264,16 @@ class AssistantService : LifecycleService(), TouchFeedback {
 
         override fun onFinal(alternatives: List<String>, confidence: FloatArray?) {
             resetInactivity()
+            // "Stop" / "cancel" always works, whatever else was heard.
+            if (alternatives.any { QuickCommands.isStop(SpeechFixer.clean(it)) } && (agent.isBusy || confirm != null)) {
+                stopTask("Cancelled"); return
+            }
             val vocab = OmniAccessibilityService.launcher()?.installedApps()?.map { it.label }.orEmpty()
-            handleUtterance(SpeechFixer.pickBest(alternatives, vocab))
+            when (val r = VoiceGate.evaluate(alternatives, confidence, vocab)) {
+                is VoiceGate.Result.Accept -> handleUtterance(r.text)
+                is VoiceGate.Result.Repeat -> askToRepeat(r.message)
+                VoiceGate.Result.Ignore -> Unit
+            }
         }
 
         override fun onLevel(level: Float) {
@@ -277,18 +288,28 @@ class AssistantService : LifecycleService(), TouchFeedback {
         }
     }
 
+    /** Misheard / unclear speech: say so and do nothing. */
+    private fun askToRepeat(message: String) {
+        AssistantHub.update { it.copy(transcript = "", status = message) }
+        AssistantHub.post(ChatItem(role = ChatRole.SYSTEM, content = message))
+        if (confirm == null) lifecycleScope.launch { if (settings.speakReplies) speaker.say(message) }
+    }
+
     private fun handleUtterance(text: String) {
         if (text.isBlank()) return
         // Ignore our own reply if the mic caught the tail of it.
         val last = speaker.lastSpoken
-        if (last.isNotBlank() && System.currentTimeMillis() - lastSpokeAt < 3000 && TextMatch.labelScore(text, last) > 0.8) return
+        val sinceSpoke = System.currentTimeMillis() - lastSpokeAt
+        if (last.isNotBlank() && sinceSpoke < 3000 && TextMatch.labelScore(text, last) > 0.8) return
 
         AssistantHub.update { it.copy(transcript = text) }
         confirm?.let { d ->
             when {
+                // Too soon after our own question = probably our echo, not the user.
+                sinceSpoke < 600 -> Unit
                 QuickCommands.isYes(text) -> d.complete(true)
                 QuickCommands.isNo(text) -> d.complete(false)
-                else -> { d.complete(false); agent.submit(text) }
+                else -> askToRepeat("Please say \"confirm\" or \"cancel\", or tap a button.")
             }
             return
         }
@@ -332,15 +353,17 @@ class AssistantService : LifecycleService(), TouchFeedback {
             if (settings.speakReplies) speaker.say(text.take(300))
         }
 
-        override suspend fun confirm(question: String): Boolean {
+        override suspend fun confirm(request: ConfirmRequest): Boolean {
             val d = CompletableDeferred<Boolean>()
             confirm = d
-            AssistantHub.update { it.copy(confirmQuestion = question, phase = Phase.CONFIRM, status = question) }
-            if (!AssistantHub.state.value.sessionActive) withContext(Dispatchers.Main) { openPanel() }
-            speak("$question Say yes or no.")
-            val answer = withTimeoutOrNull(30_000) { d.await() } ?: false
+            AssistantHub.update { it.copy(confirm = request, phase = Phase.CONFIRM, status = request.title) }
+            // Always show the exact action on screen before anything happens.
+            withContext(Dispatchers.Main) { openPanel() }
+            speak("${request.spoken}. Say confirm or cancel.")
+            val answer = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { d.await() } ?: false
             confirm = null
-            AssistantHub.update { it.copy(confirmQuestion = null) }
+            AssistantHub.update { it.copy(confirm = null) }
+            if (!answer) AssistantHub.post(ChatItem(role = ChatRole.SYSTEM, content = if (d.isCompleted) "Cancelled by you" else "No answer, so I cancelled it"))
             return answer
         }
 
@@ -690,6 +713,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
         private const val CHANNEL_ID = "omnicontrol_assistant"
         private const val NOTIFICATION_ID = 2001
         private const val INACTIVITY_MS = 4 * 60_000L
+        private const val CONFIRM_TIMEOUT_MS = 30_000L
 
         const val ACTION_SHOW = "com.omnicontrol.SHOW"
         const val ACTION_TOGGLE_LISTEN = "com.omnicontrol.TOGGLE_LISTEN"

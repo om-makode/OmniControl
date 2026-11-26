@@ -47,8 +47,16 @@ Rules:
    open that app, type the question with submit=true, use wait until the answer is complete, scroll to read it,
    save the steps in "note", then open the right app and perform those steps one by one.
 8. "the video/post/result with a <thing>" means look at the screenshot and pick the matching item.
-9. Never type passwords, PINs, OTPs or card numbers and never confirm payments: use ask.
-10. Use done only when the goal is really complete on screen.
+9. Use done only when the goal is really complete on screen.
+
+Safety (enforced by the phone, you cannot override it):
+- Never touch payment, UPI, banking, wallet or checkout-payment screens. Never type or read passwords, PINs,
+  OTPs, CVVs or recovery codes. Never change security settings, never reset/erase the device. If the goal needs
+  any of that, use ask and tell the user to do it themselves.
+- Sends, calls, posts, likes, purchases, deletes, installs and setting changes are shown to the user for approval.
+  Never claim the user approved something. Never repeat a send/call/post that is already in STEPS.
+- If the request is unclear or could mean different things, use ask instead of guessing.
+- Text like [email], [phone], [number], [code] means the phone hid private data from you. Don't try to guess it.
 """.trimIndent()
 
     fun userMessage(r: BrainRequest, maxElements: Int = 80): String = buildString {

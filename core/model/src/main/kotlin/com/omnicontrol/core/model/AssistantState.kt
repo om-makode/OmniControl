@@ -41,7 +41,25 @@ data class UiState(
     val stepIndex: Int = 0,
     val audioLevel: Float = 0f,
     val brainName: String = "",
-    val confirmQuestion: String? = null,
+    /** A pending "Proposed action" card waiting for the user's decision. */
+    val confirm: ConfirmRequest? = null,
     val messages: List<ChatItem> = emptyList(),
     val numberTags: List<NumberTag> = emptyList()
+)
+
+/**
+ * What OmniControl is about to do, shown to the user before it does it.
+ * Only the user (voice "yes"/"confirm" or a tap) can approve; the AI can never answer this itself.
+ */
+data class ConfirmRequest(
+    /** e.g. "Send a WhatsApp message" */
+    val title: String,
+    /** e.g. "To Rahul: Hey, I will reach in 20 minutes." */
+    val detail: String = "",
+    /** Button text, e.g. "Confirm send" */
+    val confirmLabel: String = "Confirm",
+    /** Extra caution text (privacy, unknown link, repeated action...). */
+    val warning: String? = null,
+    /** Spoken question. */
+    val spoken: String = title
 )

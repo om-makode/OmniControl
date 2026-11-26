@@ -67,9 +67,6 @@ fun SettingsScreen(settings: SettingsState, perms: PermissionsState, store: Omni
             ToggleRow("Show touching ball", "A glowing ball flies to everything the assistant taps.", settings.showTouchBall) {
                 scope.launch { store.setShowTouchBall(it) }
             }
-            ToggleRow("Ask before risky taps", "Send, buy, delete, post, subscribe, call…", settings.confirmRiskyActions) {
-                scope.launch { store.setConfirmRiskyActions(it) }
-            }
             Spacer(Modifier.height(6.dp))
             Text("Max AI steps per command: ${settings.maxSteps}", color = Palette.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Slider(
@@ -80,11 +77,40 @@ fun SettingsScreen(settings: SettingsState, perms: PermissionsState, store: Omni
         }
 
         Spacer(Modifier.height(12.dp))
-        SectionTitle("ABOUT")
+        SectionTitle("PRIVACY")
         Card {
-            Bullet("Passwords, PINs and payment screens are never touched.")
-            Bullet("Protected screens (banking apps) can't be seen by any assistant app.")
-            Bullet("Quick commands and offline speech work without internet.")
+            ToggleRow(
+                "Let cloud AI read personal apps",
+                "Off (recommended): messages, email, contacts, photos, files and notifications are never sent to Gemini, Groq or other online AI.",
+                settings.allowPersonalCloud
+            ) { scope.launch { store.setAllowPersonalCloud(it) } }
+            Bullet("Before anything goes to an online AI, emails, phone numbers, card/ID numbers and codes are hidden.")
+            Bullet("Banking, payment and password apps are never read or sent anywhere.")
+            Bullet("Logs never contain screen text or what you said.")
+        }
+
+        Spacer(Modifier.height(12.dp))
+        SectionTitle("SAFETY RULES (ALWAYS ON)")
+        Card {
+            Text("Never done, even if you ask", color = Palette.Red, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Bullet("Payments, UPI, bank transfers, approving payment requests")
+            Bullet("Typing, reading or sharing passwords, PINs, OTPs, CVVs")
+            Bullet("CAPTCHA, fingerprint or other identity checks")
+            Bullet("Turning off screen lock, Play Protect or other security")
+            Bullet("Factory reset or erasing the phone")
+            Spacer(Modifier.height(10.dp))
+            Text("Asks you first, every single time", color = Palette.Amber, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Bullet("Calls, SMS, WhatsApp and email sends, forwards and shares")
+            Bullet("Posts, comments, likes, subscribes, follows")
+            Bullet("Orders and bookings (it stops before payment)")
+            Bullet("Deleting, moving or sharing files, contacts or data")
+            Bullet("Setting changes, permissions, installing or removing apps")
+            Bullet("Sharing location, using the camera, opening unfamiliar links")
+            Spacer(Modifier.height(10.dp))
+            Text("Voice", color = Palette.Cyan, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Bullet("Unclear or misheard speech (including adult words) is never run. It asks you to repeat.")
+            Bullet("Only listens after you tap the orb, and stops after a few quiet minutes.")
+            Bullet("\"Stop\" or \"cancel\" cancels at once; nothing runs after that.")
         }
         Spacer(Modifier.height(32.dp))
     }

@@ -66,7 +66,9 @@ data class SettingsState(
     val speechLanguage: String = "",
     val confirmRiskyActions: Boolean = true,
     val maxSteps: Int = 25,
-    val showTouchBall: Boolean = true
+    val showTouchBall: Boolean = true,
+    /** Off = messages, email, contacts, photos, files and notifications are never sent to a cloud AI. */
+    val allowPersonalCloud: Boolean = false
 ) {
     val effectiveUrl: String get() = brainUrl.ifBlank { brainProvider.defaultUrl }.trimEnd('/')
     val effectiveModel: String get() = brainModel.ifBlank { brainProvider.defaultModel }
@@ -87,6 +89,7 @@ class OmniSettings(private val context: Context) {
         val CONFIRM_RISKY = booleanPreferencesKey("confirm_risky")
         val MAX_STEPS = intPreferencesKey("max_steps")
         val SHOW_TOUCH_BALL = booleanPreferencesKey("show_touch_ball")
+        val ALLOW_PERSONAL_CLOUD = booleanPreferencesKey("allow_personal_cloud")
     }
 
     val settingsFlow: Flow<SettingsState> = context.dataStore.data.map { p ->
@@ -103,7 +106,8 @@ class OmniSettings(private val context: Context) {
             speechLanguage = p[Keys.SPEECH_LANGUAGE] ?: "",
             confirmRiskyActions = p[Keys.CONFIRM_RISKY] ?: true,
             maxSteps = p[Keys.MAX_STEPS] ?: 25,
-            showTouchBall = p[Keys.SHOW_TOUCH_BALL] ?: true
+            showTouchBall = p[Keys.SHOW_TOUCH_BALL] ?: true,
+            allowPersonalCloud = p[Keys.ALLOW_PERSONAL_CLOUD] ?: false
         )
     }
 
@@ -117,6 +121,8 @@ class OmniSettings(private val context: Context) {
         it[Keys.BRAIN_URL] = ""
         it[Keys.BRAIN_MODEL] = ""
         it[Keys.BRAIN_KEY] = it[stringPreferencesKey("brain_key_${provider.name}")] ?: ""
+        // Privacy default: screenshots stay off for brains run by outside companies.
+        it[Keys.BRAIN_VISION] = !provider.leavesPhone
     }
 
     suspend fun setBrainUrl(url: String) = edit { it[Keys.BRAIN_URL] = url.trim() }
@@ -133,6 +139,7 @@ class OmniSettings(private val context: Context) {
     suspend fun setConfirmRiskyActions(enabled: Boolean) = edit { it[Keys.CONFIRM_RISKY] = enabled }
     suspend fun setMaxSteps(steps: Int) = edit { it[Keys.MAX_STEPS] = steps.coerceIn(5, 60) }
     suspend fun setShowTouchBall(enabled: Boolean) = edit { it[Keys.SHOW_TOUCH_BALL] = enabled }
+    suspend fun setAllowPersonalCloud(enabled: Boolean) = edit { it[Keys.ALLOW_PERSONAL_CLOUD] = enabled }
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit { block(it) }

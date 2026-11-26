@@ -2,11 +2,13 @@ package com.omnicontrol.feature.agent
 
 import android.content.Context
 import com.omnicontrol.core.common.OmniLog
+import com.omnicontrol.core.common.safety.PrivacyFilter
 import com.omnicontrol.core.common.settings.SettingsState
 import com.omnicontrol.core.model.ActionResult
 import com.omnicontrol.core.model.AgentAction
 import com.omnicontrol.core.model.ChatItem
 import com.omnicontrol.core.model.ChatRole
+import com.omnicontrol.core.model.ConfirmRequest
 import com.omnicontrol.core.model.Phase
 import com.omnicontrol.core.model.ScreenState
 import com.omnicontrol.feature.accessibility.OmniAccessibilityService
@@ -18,6 +20,9 @@ import com.omnicontrol.feature.agent.brain.DecisionKind
 import com.omnicontrol.feature.agent.brain.ScreenshotEncoder
 import com.omnicontrol.feature.agent.quick.QuickCommands
 import com.omnicontrol.feature.agent.quick.QuickExecutor
+import com.omnicontrol.feature.agent.safety.BrainPrivacy
+import com.omnicontrol.feature.agent.safety.Risk
+import com.omnicontrol.feature.agent.safety.SafetyPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,8 +39,11 @@ interface AgentUi {
     fun setApp(label: String)
     fun post(item: ChatItem)
     suspend fun speak(text: String)
-    /** Suspends until the user says/taps yes or no. Returns false on "no" or timeout. */
-    suspend fun confirm(question: String): Boolean
+    /**
+     * Shows the "Proposed action" card and suspends until the USER says/taps confirm or cancel.
+     * Returns false on cancel or timeout. Only real user input can complete this.
+     */
+    suspend fun confirm(request: ConfirmRequest): Boolean
     /** A command finished (successfully or not). */
     fun taskFinished()
 }
@@ -65,6 +73,8 @@ class AgentController(
     private val notes = ArrayList<String>()
     private var pendingGoal: String? = null
     private val queue = ArrayDeque<String>()
+    /** Recent sends/calls/posts/purchases (key -> time) so they are never silently repeated. */
+    private val recentSensitive = HashMap<String, Long>()
 
     private val quick = QuickExecutor(act = { a, s -> act(a, s) }, brainAvailable = { currentBrain() != null })
 
@@ -142,6 +152,7 @@ class AgentController(
             throw StopTask("Screen control is off. Open OmniControl and turn on the accessibility service.")
         }
         ui.post(ChatItem(role = ChatRole.USER, content = command))
+        SafetyPolicy.checkCommand(command).let { if (it.risk == Risk.BLOCK) throw StopTask(it.reason) }
         val brain = currentBrain()
 
         // Answer to a question the brain asked last time: continue that task.
@@ -199,9 +210,14 @@ class AgentController(
             val snap = OmniAccessibilityService.snapshot() ?: throw StopTask("I can't read the screen.")
             val screen = snap.state
             ui.setApp(screen.appLabel)
-            if (screen.isSecure) throw StopTask("This screen is protected, so I can't see it. Please do this step yourself.")
+            SafetyPolicy.screenHandBack(screen)?.let { throw StopTask(it) }
 
-            val shot = if (brain.seesImages) {
+            val cloud = !brain.isPrivate
+            val prepared = when (val d = BrainPrivacy.prepare(screen, cloud, settings().allowPersonalCloud, brain.seesImages, brain.name.substringBefore(" ·"))) {
+                is BrainPrivacy.Decision.Refuse -> throw StopTask(d.reason)
+                is BrainPrivacy.Decision.Allow -> d
+            }
+            val shot = if (prepared.screenshotAllowed) {
                 OmniAccessibilityService.screenshot()?.let { bmp ->
                     withContext(Dispatchers.Default) { ScreenshotEncoder.encode(bmp, screen).also { bmp.recycle() } }
                 }
@@ -215,18 +231,34 @@ class AgentController(
             }
             ui.setPhase(Phase.THINKING, "Thinking (step $n)")
             val decision = brain.decide(
-                BrainRequest(goal, memory, notes, steps, screen, shot?.base64, shot?.scale ?: 1f, hint)
+                BrainRequest(
+                    goal = BrainPrivacy.clean(goal, cloud),
+                    sessionMemory = memory.map { BrainPrivacy.clean(it, cloud) },
+                    notes = notes.map { BrainPrivacy.clean(it, cloud) },
+                    steps = steps.map { BrainPrivacy.clean(it, cloud) },
+                    screen = prepared.screen,
+                    screenshotBase64 = shot?.base64,
+                    screenshotScale = shot?.scale ?: 1f,
+                    hint = hint
+                )
             ).getOrElse { e -> throw StopTask("The AI brain had a problem: ${e.message}") }
 
             decision.note?.let { note ->
-                notes.add(note.take(600))
+                if (!PrivacyFilter.isSecretLabel(note)) notes.add(note.take(600))
                 if (notes.size > 12) notes.removeAt(0)
             }
-            if (decision.thought.isNotBlank()) OmniLog.d(TAG, "step $n thought: ${decision.thought}")
 
             when (decision.kind) {
                 DecisionKind.DONE -> { finish(goal, decision.message ?: "Done.", ok = true); return }
-                DecisionKind.ANSWER -> { finish(goal, decision.message ?: "I couldn't find an answer.", ok = true); return }
+                DecisionKind.ANSWER -> {
+                    val answer = decision.message ?: "I couldn't find an answer."
+                    if (PrivacyFilter.containsPersonalInfo(answer)) {
+                        // Show it, but don't read personal details out loud.
+                        ui.post(ChatItem(role = ChatRole.ASSISTANT, content = answer, success = true))
+                        finish(goal, "This has personal details, so I've shown it in the chat instead of reading it aloud.", ok = true)
+                    } else finish(goal, answer, ok = true)
+                    return
+                }
                 DecisionKind.ASK -> {
                     pendingGoal = goal + if (steps.isNotEmpty()) "\n(Already done: ${steps.takeLast(5).joinToString("; ")})" else ""
                     val q = decision.message ?: "What should I do next?"
@@ -277,18 +309,39 @@ class AgentController(
 
     /** Safety check + UI feedback + the actual touch. Used by quick commands and the brain. */
     private suspend fun act(action: AgentAction, snap: ScreenSnapshot?): ActionResult {
-        val current = snap ?: OmniAccessibilityService.snapshot()
-        val check = SafetyGuard.check(action, current?.state, settings().confirmRiskyActions)
+        currentCoroutineContext().ensureActive()
+        var current = snap ?: OmniAccessibilityService.snapshot()
+        val openPkg = if (action.type == "open_app") OmniAccessibilityService.launcher()?.find(action.app ?: action.text.orEmpty())?.packageName else null
+        val check = SafetyPolicy.checkAction(action, current?.state, openPkg)
         when (check.risk) {
             Risk.BLOCK -> throw StopTask(check.reason)
             Risk.CONFIRM -> {
-                ui.setPhase(Phase.CONFIRM, check.question)
-                if (!ui.confirm(check.question)) throw StopTask("Okay, I didn't do it.")
+                var request = check.request!!
+                check.repeatKey?.let { key ->
+                    val last = recentSensitive[key]
+                    val ago = last?.let { (System.currentTimeMillis() - it) / 1000 }
+                    if (ago != null && ago < REPEAT_WINDOW_S) {
+                        request = request.copy(warning = listOfNotNull("I already did exactly this ${ago}s ago. Doing it again will repeat it.", request.warning).joinToString(" "))
+                    }
+                }
+                ui.setPhase(Phase.CONFIRM, request.title)
+                if (!ui.confirm(request)) throw StopTask("Okay, cancelled. I didn't do it.")
+                currentCoroutineContext().ensureActive()
+                // The screen may have changed while waiting: re-check the same action on a fresh read.
+                val fresh = OmniAccessibilityService.snapshot()
+                if (fresh != null && fresh.state.fingerprint != current?.state?.fingerprint) {
+                    val again = SafetyPolicy.checkAction(action, fresh.state, openPkg)
+                    if (again.risk == Risk.BLOCK) throw StopTask(again.reason)
+                    // Element ids belong to the old read; the performer re-finds the same element by its label.
+                    if (action.target == null) current = fresh
+                }
             }
             Risk.SAFE -> Unit
         }
+        currentCoroutineContext().ensureActive()
         ui.setPhase(Phase.ACTING, action.describe(current?.state))
         val res = OmniAccessibilityService.perform(action, current)
+        if (res.success) check.repeatKey?.let { recentSensitive[it] = System.currentTimeMillis() }
         ui.post(ChatItem(role = ChatRole.ACTION, content = res.reason, success = res.success))
         return res
     }
@@ -306,6 +359,7 @@ class AgentController(
 
     companion object {
         private const val TAG = "OmniAgent"
+        private const val REPEAT_WINDOW_S = 180L
         private val KNOWN_TYPES = setOf(
             "open_app", "open_url", "click", "tap", "long_press", "type", "clear", "enter", "scroll", "swipe",
             "back", "home", "recents", "notifications", "quick_settings", "wait"

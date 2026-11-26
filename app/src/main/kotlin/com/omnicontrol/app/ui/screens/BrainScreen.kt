@@ -122,12 +122,15 @@ fun BrainScreen(settings: SettingsState, store: OmniSettings, onBack: () -> Unit
                         }
                         ToggleRow(
                             "Send screenshots",
-                            "Needed for \"the video with a car\" or \"the red button\". The model must support images.",
+                            if (p.leavesPhone) "Off by default for privacy. Needed for \"the video with a car\". Never sent for personal, banking or password screens."
+                            else "Needed for \"the video with a car\" or \"the red button\". The model must support images.",
                             settings.brainVision
                         ) { v -> scope.launch { store.setBrainVision(v) } }
                         if (p.leavesPhone) {
                             Text(
-                                "Privacy: with this option, the screen text${if (settings.brainVision) " and screenshots" else ""} of each step are sent to ${p.title.substringBefore(" (")}.",
+                                "Privacy: each step sends a cleaned-up description of the screen${if (settings.brainVision) " and a screenshot" else ""} to ${p.title.substringBefore(" (")}. " +
+                                    "Emails, phone numbers, card numbers and codes are hidden first. Messages, email, contacts, photos, files and banking apps are not sent at all" +
+                                    if (settings.allowPersonalCloud) " (except personal apps: you allowed them in Settings)." else ".",
                                 color = Palette.Amber, fontSize = 12.sp
                             )
                         }

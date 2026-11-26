@@ -63,7 +63,7 @@ ws   ::= [ \t\n]*
             val genStart = System.currentTimeMillis()
             val output = generate(handle, prompt, grammar, 64)
             val genTime = System.currentTimeMillis() - genStart
-            OmniLog.i(TAG, "Generated output in ${genTime}ms: $output")
+            OmniLog.i(TAG, "Generated output in ${genTime}ms")
 
             Result.success(output)
         } catch (e: Exception) {

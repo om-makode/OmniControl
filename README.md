@@ -20,6 +20,17 @@ A floating AI assistant that operates your Android phone by voice. Tap the orb, 
 | **Overlay** (`feature/overlay`) | The orb, a live caption ("what you said / what I'm doing"), a chat panel and the touching ball. |
 | **Safety** | Asks before send/buy/delete/post/subscribe/call. Never types passwords or touches payment PINs. Say "stop", tap the orb, or press Volume Up + Volume Down together to stop instantly. |
 
+## Safety rules (enforced in code, the AI cannot override them)
+
+The AI only *proposes* actions; `feature/agent/safety/SafetyPolicy.kt` decides.
+
+| Level | What |
+|---|---|
+| **Never** | Payments, UPI, bank transfers, approving payment/collect requests; banking, wallet, password-manager and identity apps; typing/reading passwords, PINs, OTPs, CVVs, recovery codes; CAPTCHA/fingerprint/identity checks; turning off screen lock, Play Protect or other security; factory reset/erase. Control is handed back to you. |
+| **Proposed action card, every time** | Calls, SMS/WhatsApp/email sends, replies, forwards, shares (shows recipient + full message); posts, comments, likes, subscribes, follows; orders and bookings (stops before payment); deleting/moving/sharing files, contacts, data; setting changes, permissions, installs/uninstalls; sharing location; camera/recording; unfamiliar links and downloads. One approval = one action. Approval only by your voice ("confirm"/"cancel") or a tap, never by the AI. Auto-cancels after 30 s. Repeating the same send/call within 3 minutes is flagged. |
+| **Voice** | Speech that contains adult/offensive words is treated as misheard and never run ("Please repeat it"). Low-confidence speech is never run. Only listens after you tap the orb; stops after 4 quiet minutes. "Stop"/"cancel" cancels instantly and nothing runs afterwards. |
+| **Privacy** | Online AIs (Gemini, Groq, OpenRouter) never receive messages, email, contacts, photos, files, notifications or banking screens (unless you allow personal apps in Settings). Everything sent is redacted first (emails, phone numbers, card/ID numbers, codes). Screenshots are off by default for online AIs. Logs contain no screen text or speech. |
+
 ## AI brain options (all free)
 
 Pick one in the app: **AI brain**. Then press **Test connection**.
