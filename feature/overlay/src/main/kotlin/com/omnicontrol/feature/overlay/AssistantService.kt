@@ -56,6 +56,7 @@ import com.omnicontrol.feature.overlay.window.OverlayWindowManager
 import com.omnicontrol.feature.voice.SpeechFixer
 import com.omnicontrol.feature.voice.SpeechInput
 import com.omnicontrol.feature.voice.Speaker
+import com.omnicontrol.feature.voice.VoiceEdit
 import com.omnicontrol.feature.voice.VoiceGate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,9 @@ class AssistantService : LifecycleService(), TouchFeedback {
     private var tagsRefreshJob: Job? = null
     private var confirm: CompletableDeferred<Boolean>? = null
     private var lastSpokeAt = 0L
+    /** Words kept after a phrase that ended with "cut"; the next phrase continues it. */
+    private var voiceDraft = ""
+    private var draftJob: Job? = null
     private val density get() = resources.displayMetrics.density
 
     // ============================================================================ lifecycle
@@ -208,6 +212,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
     }
 
     private fun stopSession() {
+        clearDraft()
         speech.stop()
         agent.cancel()
         speaker.stop()
@@ -223,6 +228,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
 
     /** Stop the current task but keep listening. */
     private fun stopTask(message: String = "Stopped") {
+        clearDraft()
         agent.cancel()
         speaker.stop()
         confirm?.complete(false)
@@ -257,8 +263,11 @@ class AssistantService : LifecycleService(), TouchFeedback {
             if ((st.busy || confirm != null) && QuickCommands.isStop(SpeechFixer.clean(text))) {
                 stopTask("Cancelled"); return
             }
+            // "cut" removes the word before it, live in the popup.
+            val shown = VoiceEdit.apply(VoiceEdit.join(voiceDraft, text)).text
+            draftJob?.cancel()
             AssistantHub.update {
-                it.copy(transcript = text, phase = if (it.busy || it.phase == Phase.CONFIRM) it.phase else Phase.HEARING)
+                it.copy(transcript = shown, phase = if (it.busy || it.phase == Phase.CONFIRM) it.phase else Phase.HEARING)
             }
         }
 
@@ -268,8 +277,17 @@ class AssistantService : LifecycleService(), TouchFeedback {
             if (alternatives.any { QuickCommands.isStop(SpeechFixer.clean(it)) } && (agent.isBusy || confirm != null)) {
                 stopTask("Cancelled"); return
             }
+            // Apply spoken "cut" edits (on top of any held draft).
+            val draft = voiceDraft
+            val best = VoiceEdit.apply(VoiceEdit.join(draft, alternatives.first()))
+            if (best.endsWithCut || best.text.isBlank()) {
+                holdDraft(best.text); return
+            }
+            clearDraft()
+            val edited = if (draft.isBlank() && !best.hadCut) alternatives
+            else alternatives.map { VoiceEdit.apply(VoiceEdit.join(draft, it)).text }.filter { it.isNotBlank() }
             val vocab = OmniAccessibilityService.launcher()?.installedApps()?.map { it.label }.orEmpty()
-            when (val r = VoiceGate.evaluate(alternatives, confidence, vocab)) {
+            when (val r = VoiceGate.evaluate(edited, confidence, vocab)) {
                 is VoiceGate.Result.Accept -> handleUtterance(r.text)
                 is VoiceGate.Result.Repeat -> askToRepeat(r.message)
                 VoiceGate.Result.Ignore -> Unit
@@ -286,6 +304,24 @@ class AssistantService : LifecycleService(), TouchFeedback {
             AssistantHub.update { it.copy(status = message, phase = Phase.ERROR) }
             if (fatal) stopSession()
         }
+    }
+
+    /** The phrase ended with "cut": keep the remaining words and wait for the rest of the command. */
+    private fun holdDraft(text: String) {
+        voiceDraft = text
+        AssistantHub.update { it.copy(transcript = text) }
+        draftJob?.cancel()
+        if (text.isBlank()) return
+        draftJob = lifecycleScope.launch {
+            delay(DRAFT_TIMEOUT_MS)
+            voiceDraft = ""
+            AssistantHub.update { it.copy(transcript = "") }
+        }
+    }
+
+    private fun clearDraft() {
+        draftJob?.cancel()
+        voiceDraft = ""
     }
 
     /** Misheard / unclear speech: say so and do nothing. */
@@ -714,6 +750,7 @@ class AssistantService : LifecycleService(), TouchFeedback {
         private const val NOTIFICATION_ID = 2001
         private const val INACTIVITY_MS = 4 * 60_000L
         private const val CONFIRM_TIMEOUT_MS = 30_000L
+        private const val DRAFT_TIMEOUT_MS = 10_000L
 
         const val ACTION_SHOW = "com.omnicontrol.SHOW"
         const val ACTION_TOGGLE_LISTEN = "com.omnicontrol.TOGGLE_LISTEN"

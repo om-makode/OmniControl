@@ -71,6 +71,7 @@ If you cloned without `--recurse-submodules`: `git submodule update --init --dep
    - Tap the orb while it works = stop that task. Tap again when idle = stop listening.
    - **Long-press the orb** = chat panel (type commands, see history, confirm actions).
    - Say **"stop"** to cancel, **"done"** to stop listening.
+   - Say **"cut"** to delete the last heard word; each "cut" removes one more ("open YouTube and search for cut cut go to my profile" → "open YouTube and go to my profile"). The popup updates as you speak. If you pause right after "cut", it waits 10 s for the rest.
 
 ## Tests
 
